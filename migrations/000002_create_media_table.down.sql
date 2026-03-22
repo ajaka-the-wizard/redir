@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS media;
+DROP TYPE IF EXISTS media_type;
+DROP TYPE IF EXISTS upload_status;

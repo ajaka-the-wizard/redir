@@ -13,10 +13,10 @@ func CreatePrivateKey(pool *pgxpool.Pool, cfg *configs.EnvData, productId int, h
 	defer cancel()
 	var product models.Product
 	query := `
-	update client_keys
-	SET private_key = $2
+	update products
+	SET private_key = $2,updated_at = CURRENT_TIMESTAMP
 	WHERE product_id = $1
-	RETURNING id,product_id,product_name,user_id,created_at,updated_at
+	RETURNING id, product_id, product_name,user_id, created_at, updated_at
 	`
 	err := pool.QueryRow(ctx, query, productId, hash).Scan(
 		&product.ID,

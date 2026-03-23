@@ -13,7 +13,7 @@ type User struct {
 	Verified  bool      `json:"verified" db:"verified"`
 	Paid      bool      `json:"paid" db:"paid"`
 	Admin     bool      `json:"admin" db:"admin"`
-	Password  string    `json:"-" db:"passsword"`
+	Password  string    `json:"-" db:"password"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }

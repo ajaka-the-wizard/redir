@@ -3,7 +3,7 @@ package utils
 import (
 	"context"
 	"crypto/sha256"
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,11 +24,11 @@ func CreateContextWithStatedTime(seconds string) (context.Context, context.Cance
 }
 func GenCleanedUpUUid() string {
 	id := GenUUID()
-	return strings.ReplaceAll(id.String(), "-", "")
+	return strings.ReplaceAll(id, "-", "")
 }
 
-func GenUUID() uuid.UUID {
-	return uuid.New()
+func GenUUID() string {
+	return uuid.New().String()
 }
 
 func SetAndGetCookieDetails(n string, v string, s bool) *http.Cookie {
@@ -37,6 +37,8 @@ func SetAndGetCookieDetails(n string, v string, s bool) *http.Cookie {
 		Value:    v,
 		HttpOnly: true,
 		Secure:   s,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
 	}
 	return &cookie
 }
@@ -86,11 +88,13 @@ func PerformMultiStepHash(k string) (string, error) {
 	return sd, nil
 }
 func VerifyMultipStepHash(k string, h string) error {
-	log.Println("key from hash", k)
 	hash := HashPrivateKey(k)
-	err := bcrypt.CompareHashAndPassword([]byte(h), []byte(hash))
-	if err != nil {
-		return err
+	return bcrypt.CompareHashAndPassword([]byte(h), []byte(hash))
+}
+
+func GetLogger(c *gin.Context) *slog.Logger {
+	if l, e := c.Get("logger"); e {
+		return l.(*slog.Logger)
 	}
-	return nil
+	return slog.Default()
 }

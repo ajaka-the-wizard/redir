@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
@@ -40,32 +39,5 @@ func GetUser(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 		response.Message = "User retrieved successfully"
 		response.User = *user
 		c.JSON(http.StatusOK, &response)
-	}
-}
-
-func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, ok := utils.GetUser(c)
-		fmt.Printf("Type: %T Value %+v\n", user, user)
-		if !ok {
-			log.Println("user")
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
-			return
-		}
-		p_key := utils.GeneratePrivateKey()
-		h_key, err := utils.PerformMultiStepHash(p_key)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
-			return
-		}
-		key, err := repository.CreatePrivateKey(pool, cfg, user.Id, h_key)
-		if err != nil {
-			log.Println("Hey")
-			log.Println(err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
-			return
-		}
-		key.PrivateKey = p_key
-		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Private Key created successfully", "key": key})
 	}
 }

@@ -13,5 +13,4 @@ func UserRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, m
 	auth := rg.Group("/users")
 	auth.Use(middlewares.AuthMiddleware(mmap))
 	auth.GET("/me", handlers.GetUser(pool, cfg))
-	auth.GET("/key", handlers.GenerateKey(pool, cfg))
 }

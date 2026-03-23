@@ -13,11 +13,12 @@ func Listen() {
 	pool := database.Connect_DB(cfg.DATABASEURL)
 	mmap := memory.NewMemoryMap()
 	defer pool.Close()
-
 	router := gin.Default()
+	router.SetTrustedProxies(nil)
 	v1 := router.Group("/api/v1")
 	routes.AuthRoutes(v1, pool, cfg, mmap)
 	routes.UserRoutes(v1, pool, cfg, mmap)
-
+	routes.ProductRoutes(v1, pool, cfg, mmap)
+	routes.ClientRoutes(v1, pool, cfg)
 	router.Run(cfg.SERVERADDRESS)
 }

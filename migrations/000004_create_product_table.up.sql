@@ -1,9 +1,11 @@
-CREATE TABLE IF NOT EXISTS client_keys(
+CREATE TABLE IF NOT EXISTS product(
     id SERIAL PRIMARY KEY,
-    client_id INTEGER UNIQUE NOT NULL DEFAULT pseudo_encrypt(nextval('client_keys_id_seq')::int),
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    private_key TEXT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    product_id INTEGER UNIQUE NOT NULL DEFAULT pseudo_encrypt(nextval('product_id_seq')::int),
+    product_name TEXT NOT NULL,
+    user_id UUID REFERENCES users(id) NOT NULL ON DELETE CASCADE,
+    private_key TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- CREATE OR REPLACE FUNCTION pseudo_encrypt(VALUE int) RETURNS int AS $$

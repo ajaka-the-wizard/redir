@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"strings"
 
@@ -26,15 +25,11 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 		RegisterRequestBody, ok := val.(*domain.
 			CreateUserDetails)
 		if !ok {
-			log.Println("from ok")
-			log.Println("Val: ", val)
-			log.Println("cast: ", RegisterRequestBody)
 			c.JSON(http.StatusInternalServerError, response)
 			return
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(RegisterRequestBody.Password), bcrypt.DefaultCost)
 		if err != nil {
-			log.Println("from hash")
 			c.JSON(http.StatusInternalServerError, &response)
 			return
 		}
@@ -46,7 +41,6 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 				c.JSON(http.StatusConflict, &response)
 				return
 			}
-			log.Println("from create")
 			c.JSON(http.StatusInternalServerError, &response)
 			return
 		}
@@ -98,8 +92,19 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 		mmap.SetUserOnline(id, &lightUser)
 		response.Success = true
 		response.Message = "User logged in successfully"
-		cookie := utils.SetAndGetCookieDetails(id, cfg.ENVIROMENT == "production")
+		cookie := utils.SetAndGetCookieDetails("sessionId", id, cfg.ENVIROMENT == "production")
 		c.SetCookieData(cookie)
 		c.JSON(http.StatusOK, &response)
+	}
+}
+
+func HandleLogout(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		val, _ := c.Get("sessionId")
+		sessionId, _ := val.(string)
+		mmap.RevokeUser(sessionId)
+		cookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.ENVIROMENT == "production")
+		c.SetCookieData(cookie)
+		c.JSON(http.StatusNoContent, nil)
 	}
 }

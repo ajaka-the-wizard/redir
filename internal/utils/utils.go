@@ -3,9 +3,10 @@ package utils
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
+	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/domain"
@@ -23,16 +24,16 @@ func CreateContextWithStatedTime(seconds string) (context.Context, context.Cance
 }
 func GenCleanedUpUUid() string {
 	id := GenUUID()
-	return hex.EncodeToString(id[:])
+	return strings.ReplaceAll(id.String(), "-", "")
 }
 
 func GenUUID() uuid.UUID {
 	return uuid.New()
 }
 
-func SetAndGetCookieDetails(v string, s bool) *http.Cookie {
+func SetAndGetCookieDetails(n string, v string, s bool) *http.Cookie {
 	cookie := http.Cookie{
-		Name:     "sessionId",
+		Name:     n,
 		Value:    v,
 		HttpOnly: true,
 		Secure:   s,
@@ -49,6 +50,15 @@ func GetUser(c *gin.Context) (*domain.
 	user, ok := val.(*domain.
 		LightUser)
 	return user, ok
+}
+
+func GetId(c *gin.Context) (int, bool) {
+	val, exists := c.Get("id")
+	if !exists {
+		return 0, false
+	}
+	id, ok := val.(int)
+	return id, ok
 }
 
 func GeneratePrivateKey() string {
@@ -72,10 +82,11 @@ func PerformMultiStepHash(k string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sd := hex.EncodeToString(d)
+	sd := string(d)
 	return sd, nil
 }
 func VerifyMultipStepHash(k string, h string) error {
+	log.Println("key from hash", k)
 	hash := HashPrivateKey(k)
 	err := bcrypt.CompareHashAndPassword([]byte(h), []byte(hash))
 	if err != nil {

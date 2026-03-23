@@ -67,3 +67,16 @@ func LoginValidationMiddleware(c *gin.Context) {
 	c.Set("login", &LoginRequestBody)
 	c.Next()
 }
+
+func ProductValidationMiddleware(c *gin.Context) {
+	var request domain.CreateProductDetails
+
+	err := c.ShouldBindJSON(&request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		c.Abort()
+		return
+	}
+	c.Set("product", &request)
+	c.Next()
+}

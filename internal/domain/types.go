@@ -27,6 +27,11 @@ type LoginUserDetails struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type CreateProductDetails struct {
+	ProductName string    `json:"product_name" binding:"required"`
+	UserId      uuid.UUID `json:"user_id"`
+}
+
 type LoginResponse struct {
 	PingResponseFormat
 	Errors []string `json:"errors"`

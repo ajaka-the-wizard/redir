@@ -93,8 +93,10 @@ func VerifyMultipStepHash(k string, h string) error {
 }
 
 func GetLogger(c *gin.Context) *slog.Logger {
-	if l, e := c.Get("logger"); e {
-		return l.(*slog.Logger)
+	if l, ok := c.Get("logger"); ok {
+		if logger, ok := l.(*slog.Logger); ok && logger != nil {
+			return logger
+		}
 	}
 	return slog.Default()
 }

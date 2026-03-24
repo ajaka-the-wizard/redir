@@ -1,7 +1,7 @@
 CREATE TYPE media_type AS ENUM ('image','video');
 CREATE TYPE upload_status AS ENUM ('pending','completed','failed');
 
-CREATE TABLE IF NOT EXISTS media(
+CREATE TABLE IF NOT EXISTS medias(
     id UUID PRIMARY KEY DEFAULT uuidv7(),
     bucket_key TEXT UNIQUE NOT NULL,
     user_id UUID REFERENCES users(id) ON DELETE SET NULL,

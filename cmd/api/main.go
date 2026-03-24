@@ -7,9 +7,7 @@ import (
 )
 
 func main() {
-	err := internal.Listen()
-	if err != nil {
-		log.Println("Couldnt bind to port")
-		log.Println(err.Error())
+	if err := internal.Listen(); err != nil {
+		log.Fatalf("couldn't bind to port; %v", err)
 	}
 }

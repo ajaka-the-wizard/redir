@@ -10,22 +10,29 @@ import (
 )
 
 func CreateUser(pool *pgxpool.Pool, user *domain.
-	CreateUserDetails, cfg *configs.EnvData) error {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	CreateUserDetails, cfg *configs.EnvData) (*domain.LightUser, error) {
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
+	var lUser domain.LightUser
 	query := `
 	INSERT INTO users (full_name,email,password)
 	VALUES ($1, $2, $3)
+	RETURNING id, email, admin, paid
 	`
-	_, err := pool.Exec(ctx, query, user.FullName, user.Email, user.Password)
+	err := pool.QueryRow(ctx, query, user.FullName, user.Email, user.Password).Scan(
+		&lUser.Id,
+		&lUser.Email,
+		&lUser.Admin,
+		&lUser.Paid,
+	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &lUser, nil
 }
 
 func GetUserByEmail(pool *pgxpool.Pool, cfg *configs.EnvData, email string) (*models.User, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	query := `
 	SELECT id, email, password, verified
@@ -46,7 +53,7 @@ func GetUserByEmail(pool *pgxpool.Pool, cfg *configs.EnvData, email string) (*mo
 }
 
 func GetUserById(pool *pgxpool.Pool, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	query := `
 	SELECT id, email, verified, full_name, paid

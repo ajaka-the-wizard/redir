@@ -9,7 +9,7 @@ import (
 )
 
 func CreatePrivateKey(pool *pgxpool.Pool, cfg *configs.EnvData, productId int, hash string) (*models.Product, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	var product models.Product
 	query := `
@@ -33,7 +33,7 @@ func CreatePrivateKey(pool *pgxpool.Pool, cfg *configs.EnvData, productId int, h
 }
 
 func GetProductById(pool *pgxpool.Pool, cfg *configs.EnvData, productId int) (*models.Product, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	var product models.Product
 	query := `
@@ -56,7 +56,7 @@ func GetProductById(pool *pgxpool.Pool, cfg *configs.EnvData, productId int) (*m
 }
 
 func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData, data *domain.CreateProductDetails) (*models.Product, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	var product models.Product
 

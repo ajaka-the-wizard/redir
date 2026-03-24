@@ -45,3 +45,11 @@ type GetMeResponse struct {
 	PingResponseFormat
 	User models.User `json:"user" db:"user"`
 }
+
+type GoogleUser struct {
+	ID            string `json:"sub"`
+	Email         string `json:"email"`
+	VerifiedEmail string `json:"verified_email"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+}

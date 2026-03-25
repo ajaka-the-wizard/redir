@@ -13,4 +13,5 @@ func ClientRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData)
 	client.Use(middlewares.RL.GetLimiterForClient(15))
 	client.Use(middlewares.CheckAndValidateClientKeys(pool, cfg))
 	client.GET("/ping", handlers.HandleClientPing())
+	client.POST("/upload", handlers.HandleUpload())
 }

@@ -23,8 +23,8 @@ func InitRateLimiter() *Limiter {
 	return &Limiter{}
 }
 
-func (l *Limiter) GetLimiterForAuth(limit_per_sec uint) gin.HandlerFunc {
-	store := l.getStore(limit_per_sec, time.Minute)
+func (l *Limiter) GetLimiterForAuth(limit_per_rate uint) gin.HandlerFunc {
+	store := l.getStore(limit_per_rate, time.Minute)
 	mv := rl.RateLimiter(*store, &rl.Options{
 		KeyFunc: func(c *gin.Context) string {
 			return c.ClientIP()
@@ -34,8 +34,8 @@ func (l *Limiter) GetLimiterForAuth(limit_per_sec uint) gin.HandlerFunc {
 	return mv
 }
 
-func (l *Limiter) GetLimiterForProductAndUser(limit_per_sec uint) gin.HandlerFunc {
-	store := l.getStore(limit_per_sec, time.Minute)
+func (l *Limiter) GetLimiterForProductAndUser(limit_per_rate uint) gin.HandlerFunc {
+	store := l.getStore(limit_per_rate, time.Minute)
 	mv := rl.RateLimiter(*store, &rl.Options{
 		KeyFunc: func(c *gin.Context) string {
 			sessionId, _ := c.Cookie("sessionId")
@@ -46,8 +46,8 @@ func (l *Limiter) GetLimiterForProductAndUser(limit_per_sec uint) gin.HandlerFun
 	return mv
 }
 
-func (l *Limiter) GetLimiterForClient(limit_per_sec uint) gin.HandlerFunc {
-	store := l.getStore(limit_per_sec, time.Minute)
+func (l *Limiter) GetLimiterForClient(limit_per_rate uint) gin.HandlerFunc {
+	store := l.getStore(limit_per_rate, time.Minute)
 	mv := rl.RateLimiter(*store, &rl.Options{
 		KeyFunc: func(c *gin.Context) string {
 			api_key := c.GetHeader("Authorization")

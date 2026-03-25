@@ -23,3 +23,19 @@ func HandleClientPing() gin.HandlerFunc {
 		logger.Info("Client ping ponged", "productId", client.ProductId)
 	}
 }
+
+func HandleUpload() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		data, err := c.FormFile("image")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		dst := "../../stuff" + data.Filename
+		if err := c.SaveUploadedFile(data, dst); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to save file"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "file uploaded successfully"})
+	}
+}

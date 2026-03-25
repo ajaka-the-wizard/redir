@@ -11,7 +11,7 @@ switch ($command) {
     "up" { migrate -path migrations -database $env:DATABASE_URL up }
     "down" { 
         $count = if ($name) { $name } else { "1" }
-        Write-Host "Rolling back $count migration(s). Continue? [Y/N]"
+        Write-Host "Rolling back $count migration(s). Continue? [y/N]"
         $confirm = Read-Host
         if ($confirm -eq 'y') {
             migrate -path migrations -database $env:DATABASE_URL down $count

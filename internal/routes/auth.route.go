@@ -15,6 +15,8 @@ func AuthRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, m
 	auth.POST("/login", middlewares.LoginValidationMiddleware, handlers.HandleLogin(pool, cfg, mmap))
 	auth.POST("/logout", middlewares.AuthMiddleware(mmap), handlers.HandleLogout(mmap, cfg))
 	o := handlers.InitGoogleOauth(cfg)
+	og := handlers.InitGithubOauth(cfg)
 	auth.GET("/oauth/google", o.HandleRedirectToGoogle(cfg))
+	auth.GET("/oauth/github", og.HandleRedirectToGithub(cfg))
 	auth.GET("oauth/google/callback", o.HandleGoogleCallback(pool, cfg, mmap))
 }

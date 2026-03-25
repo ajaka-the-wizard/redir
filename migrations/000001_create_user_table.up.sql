@@ -1,4 +1,4 @@
-CREATE TYPE provider_enum AS ENUM ("google","github","custom");
+CREATE TYPE provider_enum AS ENUM ('google','github','custom');
 
 CREATE TABLE IF NOT EXISTS users(
     id UUID PRIMARY KEY DEFAULT uuidv7(),

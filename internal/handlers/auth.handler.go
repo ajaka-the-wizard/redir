@@ -212,9 +212,10 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 					c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 					return
 				}
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
-			return
 		}
 		cookie := utils.PerformLoginActivity(mmap, cfg, u)
 		c.SetCookieData(cookie)

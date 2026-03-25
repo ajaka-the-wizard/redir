@@ -29,10 +29,10 @@ func CreateOrLinkOauth(pool *pgxpool.Pool, cfg *configs.EnvData, id_or_sub strin
 	defer cancel()
 	var lUser domain.LightUser
 	query := `
-	INSERT INTO users (provider_sub, email, full_name, provider)
-	VALUES ($1, $2, $3, $4)
+	INSERT INTO users (provider_sub, email, full_name, provider,verified)
+	VALUES ($1, $2, $3, $4, true)
 	ON CONFLICT (email) DO UPDATE SET
-	provider_sub = EXCLUDED.provider-sub,
+	provider_sub = EXCLUDED.provider_sub,
 	provider = EXCLUDED.provider
 	RETURNING id, email, admin, paid
 	`

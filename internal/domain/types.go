@@ -49,7 +49,7 @@ type GetMeResponse struct {
 type GoogleUser struct {
 	ID            string `json:"sub"`
 	Email         string `json:"email"`
-	VerifiedEmail string `json:"verified_email"`
+	VerifiedEmail bool   `json:"verified_email"`
 	Name          string `json:"name"`
 	Picture       string `json:"picture"`
 }

@@ -1,0 +1,27 @@
+package database
+
+import (
+	"context"
+	"log"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func Connect_DB(databaseUrl string) *pgxpool.Pool {
+	ctx := context.Background()
+	config, err := pgxpool.ParseConfig(databaseUrl)
+	if err != nil {
+		log.Fatalf("Unable to parse database url: %v", err)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		log.Fatalf("Unbale to create connection pool: %v", err)
+	}
+	err = pool.Ping(ctx)
+	if err != nil {
+		pool.Close()
+		log.Fatalf("Unable to ping database: %v", err)
+	}
+	log.Println("Successfully connected to PostgreSQL database")
+	return pool
+}

@@ -32,6 +32,7 @@ func CreateOrLinkOauth(pool *pgxpool.Pool, cfg *configs.EnvData, id_or_sub strin
 	INSERT INTO users (provider_sub, email, full_name, provider,verified)
 	VALUES ($1, $2, $3, $4, true)
 	ON CONFLICT (email) DO UPDATE SET
+	verified = true
 	provider_sub = EXCLUDED.provider_sub,
 	provider = EXCLUDED.provider
 	RETURNING id, email, admin, paid

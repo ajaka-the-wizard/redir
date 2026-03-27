@@ -22,7 +22,7 @@ func GetUser(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 		u, ok := utils.GetUser(c)
 		if !ok {
 			response.Message = "Couldnt identify user"
-			c.JSON(http.StatusBadRequest, &response)
+			c.JSON(http.StatusUnauthorized, &response)
 			return
 		}
 		user, err := repository.GetUserById(pool, cfg, u.Id)

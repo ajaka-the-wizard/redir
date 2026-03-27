@@ -29,7 +29,7 @@ type LoginUserDetails struct {
 
 type CreateProductDetails struct {
 	ProductName string    `json:"product_name" binding:"required"`
-	UserId      uuid.UUID `json:"user_id"`
+	UserId      uuid.UUID `json:"-"`
 }
 
 type LoginResponse struct {

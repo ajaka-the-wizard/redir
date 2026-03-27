@@ -49,6 +49,7 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.Ha
 		pIdI, err := strconv.Atoi(pId)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Product ID"})
+			c.Abort()
 			return
 		}
 		key, err := repository.GetProductById(pool, cfg, pIdI)
@@ -78,9 +79,19 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.Ha
 
 func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, _ := utils.GetUser(c)
+		user, ok := utils.GetUser(c)
+		if !ok || user == nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": http.StatusText(http.StatusUnauthorized)})
+			c.Abort()
+			return
+		}
 		pId := c.Param("id")
-		pIdI, _ := strconv.Atoi(pId)
+		pIdI, err := strconv.Atoi(pId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Product ID"})
+			c.Abort()
+			return
+		}
 		product, err := repository.GetProductById(pool, cfg, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {

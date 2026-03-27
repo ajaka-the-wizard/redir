@@ -12,7 +12,7 @@ type EnvData struct {
 	DATABASEURL    string
 	CONTEXTTIMEOUT string
 	SERVERADDRESS  string
-	ENVIROMENT     string
+	ENVIRONMENT    string
 }
 
 func LoadEnv() *EnvData {
@@ -26,7 +26,7 @@ func LoadEnv() *EnvData {
 		PORT:           os.Getenv("PORT"),
 		CONTEXTTIMEOUT: os.Getenv("CONTEXT_TIMEOUT"),
 		SERVERADDRESS:  os.Getenv("SERVER_ADDRESS"),
-		ENVIROMENT:     os.Getenv("ENVIROMENT"),
+		ENVIRONMENT:    os.Getenv("ENVIRONMENT"),
 	}
 	log.Println("Enviroments variables loaded")
 	return &config

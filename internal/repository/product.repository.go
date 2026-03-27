@@ -24,7 +24,7 @@ func CreatePrivateKey(pool *pgxpool.Pool, cfg *configs.EnvData, productId int, h
 		&product.ProductName,
 		&product.UserId,
 		&product.CreatedAt,
-		&product.CreatedAt,
+		&product.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func GetProductById(pool *pgxpool.Pool, cfg *configs.EnvData, productId int) (*m
 	var product models.Product
 	query := `
 	SELECT id, product_id, user_id, private_key, created_at,updated_at
-	FROM product
+	FROM products
 	WHERE product_id = $1
 	`
 	err := pool.QueryRow(ctx, query, productId).Scan(
@@ -61,7 +61,7 @@ func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData, data *domain.Create
 	var product models.Product
 
 	query := `
-	INSERT INTO product (product_name, user_id)
+	INSERT INTO products (product_name, user_id)
 	VALUES($1, $2)
 	RETURNING id,product_id,product_name,user_id,created_at,updated_at
 	`

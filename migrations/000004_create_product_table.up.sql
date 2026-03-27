@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS product(
+CREATE TABLE IF NOT EXISTS products(
     id SERIAL PRIMARY KEY,
     product_id INTEGER UNIQUE NOT NULL DEFAULT pseudo_encrypt(nextval('product_id_seq')::int),
     product_name TEXT NOT NULL,

@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/utils"
@@ -10,13 +11,12 @@ import (
 
 func GenAndAttachRequestIdMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.GetHeader("X-Request-ID")
-		if id == "" {
+		id := strings.TrimSpace(c.GetHeader("X-Request-ID"))
+		if id == "" || len(id) > 128 || strings.ContainsAny(id, "\r\n") {
 			id = utils.GenUUID()
 		}
-		c.Header("X-Request-ID", id)
-		c.Set("requestId", id)
 		c.Writer.Header().Set("X-Request-ID", id)
+		c.Set("requestId", id)
 		c.Next()
 	}
 }

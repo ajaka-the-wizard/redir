@@ -43,7 +43,7 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 				response.Message = "Email is already registered"
 				c.JSON(http.StatusConflict, &response)
-				logger.Warn("Email unique contraint conflict", "error", err.Error())
+				logger.Warn("Email unique constraint conflict", "error", err.Error())
 				return
 			}
 			c.JSON(http.StatusInternalServerError, &response)
@@ -60,7 +60,7 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
-		logger.Info("Starting user login in attempt")
+		logger.Info("Starting user login attempt")
 		var response domain.
 			LoginResponse
 		response.Message = "Something went wrong"

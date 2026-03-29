@@ -11,7 +11,7 @@ import (
 
 func CreateUser(pool *pgxpool.Pool, user *domain.
 	CreateUserDetails, cfg *configs.EnvData) error {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	query := `
 	INSERT INTO users (full_name,email,password)
@@ -24,8 +24,29 @@ func CreateUser(pool *pgxpool.Pool, user *domain.
 	return nil
 }
 
+func CreateOrLinkOauth(pool *pgxpool.Pool, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
+	defer cancel()
+	var lUser domain.LightUser
+	query := `
+	INSERT INTO users (provider_sub, email, full_name, provider)
+	VALUES ($1, $2, $3, $4)
+	RETURNING id, email, admin, paid
+	`
+	err := pool.QueryRow(ctx, query, id_or_sub, email, name, provider).Scan(
+		&lUser.Id,
+		&lUser.Email,
+		&lUser.Admin,
+		&lUser.Paid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &lUser, nil
+}
+
 func GetUserByEmail(pool *pgxpool.Pool, cfg *configs.EnvData, email string) (*models.User, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	query := `
 	SELECT id, email, password, verified
@@ -46,7 +67,7 @@ func GetUserByEmail(pool *pgxpool.Pool, cfg *configs.EnvData, email string) (*mo
 }
 
 func GetUserById(pool *pgxpool.Pool, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXTTIMEOUT)
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
 	defer cancel()
 	query := `
 	SELECT id, email, verified, full_name, paid
@@ -60,6 +81,27 @@ func GetUserById(pool *pgxpool.Pool, cfg *configs.EnvData, id uuid.UUID) (*model
 		&user.Verified,
 		&user.FullName,
 		&user.Paid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func GetUserByProvider(pool *pgxpool.Pool, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
+	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
+	defer cancel()
+	query := `
+	SELECT id, email, paid, admin
+	FROM users
+	WHERE provider = $1 AND provider_sub = $2
+	`
+	var user domain.LightUser
+	err := pool.QueryRow(ctx, query, provider, sub).Scan(
+		&user.Id,
+		&user.Email,
+		&user.Paid,
+		&user.Admin,
 	)
 	if err != nil {
 		return nil, err

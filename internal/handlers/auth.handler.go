@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
@@ -10,8 +14,12 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/github"
+	"golang.org/x/oauth2/google"
 )
 
 func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
@@ -101,12 +109,11 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 			Admin: user.Admin,
 			Paid:  user.Paid,
 		}
-		id := utils.GenCleanedUpUUid()
-		mmap.SetUserOnline(id, &lightUser)
+
+		cookie := utils.PerformLoginActivity(mmap, cfg, &lightUser)
+		c.SetCookieData(cookie)
 		response.Success = true
 		response.Message = "User logged in successfully"
-		cookie := utils.SetAndGetCookieDetails("sessionId", id, cfg.ENVIRONMENT == "production")
-		c.SetCookieData(cookie)
 		c.JSON(http.StatusOK, &response)
 		logger.Info("User logged in successfully")
 	}
@@ -117,8 +124,127 @@ func HandleLogout(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.HandlerF
 		val, _ := c.Get("sessionId")
 		sessionId, _ := val.(string)
 		mmap.RevokeUser(sessionId)
-		cookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.ENVIRONMENT == "production")
+		exp := time.Now().Add(-1 * time.Second)
+		cookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.PRODUCTION, exp)
 		c.SetCookieData(cookie)
 		c.Status(http.StatusNoContent)
+	}
+}
+
+type GoogleOauth struct {
+	o *oauth2.Config
+}
+
+func InitGoogleOauth(cfg *configs.EnvData) *GoogleOauth {
+	c := oauth2.Config{
+		ClientID:     cfg.GOOGLE_CLIENT_ID,
+		ClientSecret: cfg.GOOGLE_CLIENT_SECRET,
+		RedirectURL:  cfg.GOOGLE_REDIRECT_URL,
+		Scopes:       []string{"openid", "email", "profile"},
+		Endpoint:     google.Endpoint,
+	}
+	return &GoogleOauth{
+		o: &c,
+	}
+}
+
+func (g *GoogleOauth) HandleRedirectToGoogle(cfg *configs.EnvData) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// logger := utils.GetLogger(c)
+		state := utils.GenUUID()
+		exp := time.Now().Add(15 * time.Minute)
+		cookie := utils.SetAndGetCookieDetails("state", state, cfg.PRODUCTION, exp)
+		c.SetCookieData(cookie)
+		c.Redirect(http.StatusFound, g.o.AuthCodeURL(state))
+	}
+}
+
+func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		provider := "google"
+		// logger := utils.GetLogger(c)
+		state, err := c.Cookie("state")
+		returnedState := c.Query("state")
+		if err != nil || state != returnedState {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid or expired state token"})
+			return
+		}
+		code := c.Query("code")
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		token, err := g.o.Exchange(ctx, code)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		client := g.o.Client(ctx, token)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.googleapis.com/oauth2/v3/userinfo", nil)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "failed to get user info"})
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to get user info"})
+			return
+		}
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to get user info"})
+			return
+		}
+		var user domain.GoogleUser
+		if err := json.Unmarshal(data, &user); err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		u, err := repository.GetUserByProvider(pool, cfg, provider, user.ID)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				u, err = repository.CreateOrLinkOauth(pool, cfg, user.ID, user.Email, user.Name, provider)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+					return
+				}
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		cookie := utils.PerformLoginActivity(mmap, cfg, u)
+		c.SetCookieData(cookie)
+		c.Redirect(http.StatusFound, cfg.CLIENT_DASHBOARD)
+	}
+}
+
+type GithubOauth struct {
+	o *oauth2.Config
+}
+
+func InitGithubOauth(cfg *configs.EnvData) *GithubOauth {
+	c := oauth2.Config{
+		ClientID:     cfg.GITHUB_CLIENT_ID,
+		ClientSecret: cfg.GITHUB_CLIENT_SECRET,
+		RedirectURL:  cfg.GITHUB_REDIRECT_URL,
+		Scopes:       []string{"read:user", "user:email"},
+		Endpoint:     github.Endpoint,
+	}
+	return &GithubOauth{
+		o: &c,
+	}
+}
+func (g *GithubOauth) HandleRedirectToGithub(cfg *configs.EnvData) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// logger := utils.GetLogger(c)
+		state := utils.GenUUID()
+		exp := time.Now().Add(15 * time.Minute)
+		cookie := utils.SetAndGetCookieDetails("state", state, cfg.PRODUCTION, exp)
+		c.SetCookieData(cookie)
+		c.Redirect(http.StatusFound, g.o.AuthCodeURL(state))
 	}
 }

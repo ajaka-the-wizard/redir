@@ -11,10 +11,10 @@ import (
 
 func Listen() error {
 	cfg := configs.LoadEnv()
-	pool := database.Connect_DB(cfg.DATABASEURL)
+	pool := database.Connect_DB(cfg.DATABASE_URL)
 	mmap := memory.NewMemoryMap()
 
-	if cfg.ENVIRONMENT == "production" {
+	if cfg.PRODUCTION {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	defer pool.Close()
@@ -35,5 +35,5 @@ func Listen() error {
 	routes.ProductRoutes(v1, pool, cfg, mmap)
 	routes.ClientRoutes(v1, pool, cfg)
 
-	return router.Run(cfg.SERVERADDRESS)
+	return router.Run(cfg.SERVER_ADDRESS)
 }

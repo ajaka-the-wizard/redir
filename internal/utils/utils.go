@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
+	"github.com/ajaka-the-wizard/redir/internal/memory"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -31,7 +33,7 @@ func GenUUID() string {
 	return uuid.New().String()
 }
 
-func SetAndGetCookieDetails(n string, v string, s bool) *http.Cookie {
+func SetAndGetCookieDetails(n string, v string, s bool, exp time.Time) *http.Cookie {
 	cookie := http.Cookie{
 		Name:     n,
 		Value:    v,
@@ -39,6 +41,7 @@ func SetAndGetCookieDetails(n string, v string, s bool) *http.Cookie {
 		Secure:   s,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
+		Expires:  exp,
 	}
 	return &cookie
 }
@@ -99,4 +102,12 @@ func GetLogger(c *gin.Context) *slog.Logger {
 		}
 	}
 	return slog.Default()
+}
+
+func PerformLoginActivity(mmap *memory.AuthMemoryMap, cfg *configs.EnvData, user *domain.LightUser) *http.Cookie {
+	id := GenCleanedUpUUid()
+	mmap.SetUserOnline(id, user)
+	exp := time.Now().Add(24 * time.Hour)
+	cookie := SetAndGetCookieDetails("sessionId", id, cfg.PRODUCTION, exp)
+	return cookie
 }

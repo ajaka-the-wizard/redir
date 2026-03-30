@@ -204,6 +204,10 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
+		if !user.VerifiedEmail {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "Email provided is unverified"})
+			return
+		}
 		u, err := repository.GetUserByProvider(pool, cfg, provider, user.ID)
 		if err != nil {
 			if err == pgx.ErrNoRows {

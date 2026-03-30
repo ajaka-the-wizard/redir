@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"log"
 	"log/slog"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 func GenAndAttachRequestIdMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		log.Println("got", c.Request.URL, c.Request.Method)
 		id := strings.TrimSpace(c.GetHeader("X-Request-ID"))
 		if id == "" || len(id) > 128 || strings.ContainsAny(id, "\r\n") {
 			id = utils.GenUUID()

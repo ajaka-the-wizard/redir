@@ -15,7 +15,11 @@ import (
 func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// user, ok := utils.GetUser(c)
-		pIdI, _ := utils.GetId(c)
+		pIdI, ok := utils.GetId(c)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Couldn't get id"})
+			return
+		}
 		p_key := utils.GeneratePrivateKey()
 		h_key, err := utils.PerformMultiStepHash(p_key)
 		if err != nil {

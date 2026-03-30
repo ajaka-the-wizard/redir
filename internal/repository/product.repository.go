@@ -37,7 +37,7 @@ func GetProductById(pool *pgxpool.Pool, cfg *configs.EnvData, productId int) (*m
 	defer cancel()
 	var product models.Product
 	query := `
-	SELECT id, product_id, user_id, private_key, created_at,updated_at
+	SELECT id, product_id, user_id, COALESCE(private_key,'') as private_key, created_at,updated_at
 	FROM products
 	WHERE product_id = $1
 	`

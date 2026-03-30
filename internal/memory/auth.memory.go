@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"log"
 	"sync"
 
 	"github.com/ajaka-the-wizard/redir/internal/domain"
@@ -23,6 +24,7 @@ func (m *AuthMemoryMap) SetUserOnline(sessionId string, u *domain.
 	LightUser) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	log.Println("Setting", sessionId)
 	m.auth[sessionId] = *u
 }
 

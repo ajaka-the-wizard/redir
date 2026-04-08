@@ -1,20 +1,18 @@
 package domain
 
 import (
-	"github.com/ajaka-the-wizard/redir/internal/models"
+	"time"
+
 	"github.com/google/uuid"
 )
 
 type LightUser struct {
-	Id    uuid.UUID
-	Email string
-	Admin bool
-	Paid  bool
-}
-
-type PingResponseFormat struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	Id               uuid.UUID
+	Email            string
+	Admin            bool
+	Paid             bool
+	LastAccessedTime time.Time
+	Expires          time.Time
 }
 
 type CreateUserDetails struct {
@@ -30,20 +28,6 @@ type LoginUserDetails struct {
 type CreateProductDetails struct {
 	ProductName string    `json:"product_name" binding:"required"`
 	UserId      uuid.UUID `json:"-"`
-}
-
-type LoginResponse struct {
-	PingResponseFormat
-	Errors []string `json:"errors"`
-}
-
-type CreateUserResponse struct {
-	LoginResponse
-}
-
-type GetMeResponse struct {
-	PingResponseFormat
-	User models.User `json:"user" db:"user"`
 }
 
 type GoogleUser struct {

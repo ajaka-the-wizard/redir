@@ -3,6 +3,8 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
@@ -31,7 +33,8 @@ func HandleUpload() gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 			return
 		}
-		dst := "../../stuff" + data.Filename
+		cwd, _ := os.Getwd()
+		dst := filepath.Join(cwd, "stuff", data.Filename)
 		if err := c.SaveUploadedFile(data, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to save file"})
 			return

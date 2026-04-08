@@ -12,7 +12,7 @@ import (
 func ProductRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) {
 	product := rg.Group("/product")
 	product.Use(middlewares.RL.GetLimiterForProductAndUser(10))
-	product.Use(middlewares.AuthMiddleware(mmap))
+	product.Use(middlewares.AuthMiddleware(mmap, cfg))
 	product.POST("", middlewares.ProductValidationMiddleware, handlers.CreateProduct(pool, cfg))
 	product.POST("/:id", middlewares.CanThisUserAlterThisProduct(pool, cfg), handlers.GenerateKey(pool, cfg))
 }

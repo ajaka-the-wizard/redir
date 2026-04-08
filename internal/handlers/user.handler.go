@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
-	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
@@ -15,29 +14,20 @@ import (
 
 func GetUser(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var response domain.
-			GetMeResponse
-		response.Success = false
-		response.Message = "Something went wrong"
 		u, ok := utils.GetUser(c)
 		if !ok {
-			response.Message = "Couldnt identify user"
-			c.JSON(http.StatusInternalServerError, &response)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Couldnt identify user"})
 			return
 		}
 		user, err := repository.GetUserById(pool, cfg, u.Id)
 		if err != nil {
 			if err == pgx.ErrNoRows {
-				response.Message = fmt.Sprintf("Couldnt find user with id of %v", u.Id)
-				c.JSON(http.StatusNotFound, &response)
+				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": fmt.Sprintf("Couldnt find user with id of %v", u.Id)})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, &response)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
-		response.Success = true
-		response.Message = "User retrieved successfully"
-		response.User = *user
-		c.JSON(http.StatusOK, &response)
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "User retrieved successfully", "user": *user})
 	}
 }

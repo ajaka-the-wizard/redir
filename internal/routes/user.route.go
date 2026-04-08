@@ -12,6 +12,6 @@ import (
 func UserRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) {
 	user := rg.Group("/users")
 	user.Use(middlewares.RL.GetLimiterForProductAndUser(10))
-	user.Use(middlewares.AuthMiddleware(mmap))
+	user.Use(middlewares.AuthMiddleware(mmap, cfg))
 	user.GET("/me", handlers.GetUser(pool, cfg))
 }

@@ -26,22 +26,17 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		logger.Info("Beginning registration for user")
-		var response domain.
-			CreateUserResponse
-		response.Message = "Something went wrong"
-		response.Success = false
-
 		val, _ := c.Get("reg")
 		RegisterRequestBody, ok := val.(*domain.
 			CreateUserDetails)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, response)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			logger.Error("Couldn't get user reg details from context")
 			return
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(RegisterRequestBody.Password), bcrypt.DefaultCost)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, &response)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			logger.Error("Couldn't hash user password", "error", err.Error())
 			return
 		}
@@ -49,19 +44,16 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 		err = repository.CreateUser(pool, RegisterRequestBody, cfg)
 		if err != nil {
 			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-				response.Message = "Email is already registered"
-				c.JSON(http.StatusConflict, &response)
+				c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Email is already registered"})
 				logger.Warn("Email unique constraint conflict", "error", err.Error())
 				return
 			}
-			c.JSON(http.StatusInternalServerError, &response)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			logger.Error("Something went wrong", "error", err.Error())
 			return
 		}
-		response.Success = true
-		response.Message = "User registered successfully, please proceed to login"
 		logger.Info("User registered successfully")
-		c.JSON(http.StatusCreated, &response)
+		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "User registered successfully, please proceed to login"})
 	}
 }
 
@@ -69,36 +61,29 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		logger.Info("Starting user login attempt")
-		var response domain.
-			LoginResponse
-		response.Message = "Something went wrong"
-		response.Success = false
 
 		val, _ := c.Get("login")
 		LoginRequestBody, ok := val.(*domain.
 			LoginUserDetails)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, response)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			logger.Error("Couldn't get user login details from context")
 			return
 		}
 		user, err := repository.GetUserByEmail(pool, cfg, LoginRequestBody.Email)
 		if err != nil {
-			response.Message = "Invalid credentials"
-			c.JSON(http.StatusUnauthorized, &response)
+			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid credentials"})
 			logger.Warn("User provided invalid credentials", "error", err.Error())
 			return
 		}
 		if !user.Verified {
-			response.Message = "Please verify email before logging in"
-			c.JSON(http.StatusForbidden, &response)
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "Please verify email before logging in"})
 			logger.Warn("User login attempt without email verification rejected")
 			return
 		}
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(LoginRequestBody.Password))
 		if err != nil {
-			response.Message = "Invalid credentials"
-			c.JSON(http.StatusUnauthorized, &response)
+			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid credentials"})
 			logger.Warn("User provided invalid credentials", "error", err.Error())
 			return
 		}
@@ -110,11 +95,10 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 			Paid:  user.Paid,
 		}
 
-		cookie := utils.PerformLoginActivity(mmap, cfg, &lightUser)
-		c.SetCookieData(cookie)
-		response.Success = true
-		response.Message = "User logged in successfully"
-		c.JSON(http.StatusOK, &response)
+		sessionCookie, lastAccessedTimeCookie := utils.PerformLoginActivity(mmap, cfg, &lightUser)
+		c.SetCookieData(sessionCookie)
+		c.SetCookieData(lastAccessedTimeCookie)
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "User logged in successfully"})
 		logger.Info("User logged in successfully")
 	}
 }
@@ -221,8 +205,9 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 				return
 			}
 		}
-		cookie := utils.PerformLoginActivity(mmap, cfg, u)
-		c.SetCookieData(cookie)
+		sessionIdCookie, lastAccessTimeCookie := utils.PerformLoginActivity(mmap, cfg, u)
+		c.SetCookieData(sessionIdCookie)
+		c.SetCookieData(lastAccessTimeCookie)
 		c.Redirect(http.StatusFound, cfg.CLIENT_DASHBOARD)
 	}
 }

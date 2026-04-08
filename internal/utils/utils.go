@@ -104,10 +104,28 @@ func GetLogger(c *gin.Context) *slog.Logger {
 	return slog.Default()
 }
 
-func PerformLoginActivity(mmap *memory.AuthMemoryMap, cfg *configs.EnvData, user *domain.LightUser) *http.Cookie {
+func PerformLoginActivity(mmap *memory.AuthMemoryMap, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, *http.Cookie) {
 	id := GenCleanedUpUUid()
-	mmap.SetUserOnline(id, user)
+	lastAccessedTime := mmap.SetUserOnline(id, user)
 	exp := time.Now().Add(24 * time.Hour)
-	cookie := SetAndGetCookieDetails("sessionId", id, cfg.PRODUCTION, exp)
-	return cookie
+	sessionIdCookie := SetAndGetCookieDetails("sessionId", id, cfg.PRODUCTION, exp)
+	lastAccessTimeCookie := SetAndGetCookieDetails("lastUpdateTime", StringifyTime(lastAccessedTime), cfg.PRODUCTION, exp)
+	return sessionIdCookie, lastAccessTimeCookie
+}
+
+func GetTimeFromCookie(c *gin.Context) (time.Time, error) {
+	cookie, err := c.Cookie("lastUpdateTime")
+	if err != nil {
+		return time.Time{}, err
+	}
+	unixTime, err := strconv.ParseInt(cookie, 10, 64)
+	if err != nil {
+		return time.Time{}, nil
+	}
+	return time.Unix(unixTime, 0), nil
+}
+
+func StringifyTime(t time.Time) string {
+	str := strconv.FormatInt(t.Unix(), 10)
+	return str
 }

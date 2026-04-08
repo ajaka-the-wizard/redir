@@ -20,20 +20,20 @@ func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Couldn't get id"})
 			return
 		}
-		p_key := utils.GeneratePrivateKey()
-		h_key, err := utils.PerformMultiStepHash(p_key)
+		pKey := utils.GeneratePrivateKey()
+		hKey, err := utils.PerformMultiStepHash(pKey)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
 			return
 		}
-		product, err := repository.CreatePrivateKey(pool, cfg, pIdI, h_key)
+		product, err := repository.CreatePrivateKey(pool, cfg, pIdI, hKey)
 		if err != nil {
 			log.Println("Hey")
 			log.Println(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
 			return
 		}
-		product.PrivateKey = p_key
+		product.PrivateKey = pKey
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Private Key created successfully", "product": product})
 	}
 }

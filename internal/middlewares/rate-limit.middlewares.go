@@ -62,7 +62,10 @@ func (l *Limiter) GetLimiterForClient(limit_per_rate uint) gin.HandlerFunc {
 var RL = InitRateLimiter()
 
 func rlerror(c *gin.Context, i rl.Info) {
-	retryafter := i.ResetTime.Second()
+	retryafter := int(time.Until(i.ResetTime).Seconds())
+	if retryafter < 0 {
+		retryafter = 0
+	}
 	c.JSON(http.StatusTooManyRequests, gin.H{"success": false, "message": "Too many attempts, please try again later", "retryafter": retryafter})
 	c.Abort()
 }

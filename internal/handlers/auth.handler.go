@@ -41,7 +41,7 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			return
 		}
 		RegisterRequestBody.Password = string(hash)
-		err = repository.CreateUser(pool, RegisterRequestBody, cfg)
+		err = repository.CreateUser(c.Request.Context(), pool, RegisterRequestBody, cfg)
 		if err != nil {
 			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 				c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Email is already registered"})
@@ -70,7 +70,7 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 			logger.Error("Couldn't get user login details from context")
 			return
 		}
-		user, err := repository.GetUserByEmail(pool, cfg, LoginRequestBody.Email)
+		user, err := repository.GetUserByEmail(c.Request.Context(), pool, cfg, LoginRequestBody.Email)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid credentials"})
 			logger.Warn("User provided invalid credentials", "error", err.Error())
@@ -192,10 +192,10 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "Email provided is unverified"})
 			return
 		}
-		u, err := repository.GetUserByProvider(pool, cfg, provider, user.ID)
+		u, err := repository.GetUserByProvider(c.Request.Context(), pool, cfg, provider, user.ID)
 		if err != nil {
 			if err == pgx.ErrNoRows {
-				u, err = repository.CreateOrLinkOauth(pool, cfg, user.ID, user.Email, user.Name, provider)
+				u, err = repository.CreateOrLinkOauth(c.Request.Context(), pool, cfg, user.ID, user.Email, user.Name, provider)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 					return

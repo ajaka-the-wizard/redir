@@ -64,27 +64,26 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.Ha
 			c.Abort()
 			return
 		}
-		key, err := repository.GetProductById(pool, cfg, pIdI)
+		product, err := repository.GetProductById(c.Request.Context(), pool, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
 				c.Abort()
 				return
 			}
-			log.Println("xxx")
 			log.Println(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			c.Abort()
 			return
 		}
-		err = utils.VerifyMultipStepHash(k, key.PrivateKey)
+		err = utils.VerifyMultipStepHash(k, product.PrivateKey)
 		if err != nil {
 			log.Println(err.Error())
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid key given"})
 			c.Abort()
 			return
 		}
-		c.Set("client", key)
+		c.Set("product", product)
 		c.Next()
 	}
 }
@@ -104,14 +103,13 @@ func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.H
 			c.Abort()
 			return
 		}
-		product, err := repository.GetProductById(pool, cfg, pIdI)
+		product, err := repository.GetProductById(c.Request.Context(), pool, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
 				c.Abort()
 				return
 			}
-			log.Println("xxx")
 			log.Println(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			c.Abort()
@@ -122,7 +120,7 @@ func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.H
 			c.Abort()
 			return
 		}
-		c.Set("product", &product)
+		c.Set("product", product)
 		c.Set("id", pIdI)
 		c.Next()
 	}

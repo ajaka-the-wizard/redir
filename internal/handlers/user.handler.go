@@ -19,7 +19,7 @@ func GetUser(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Couldnt identify user"})
 			return
 		}
-		user, err := repository.GetUserById(pool, cfg, u.Id)
+		user, err := repository.GetUserById(c.Request.Context(), pool, cfg, u.Id)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": fmt.Sprintf("Couldnt find user with id of %v", u.Id)})

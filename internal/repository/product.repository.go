@@ -1,78 +1,70 @@
 package repository
 
 import (
-	"github.com/ajaka-the-wizard/redir/internal/configs"
+	"context"
+	"time"
+
 	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/models"
-	"github.com/ajaka-the-wizard/redir/internal/utils"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreatePrivateKey(pool *pgxpool.Pool, cfg *configs.EnvData, productId int, hash string) (*models.Product, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
+func CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, hash string) (*models.Product, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	var product models.Product
 	query := `
 	update products
 	SET private_key = $2,updated_at = CURRENT_TIMESTAMP
 	WHERE product_id = $1
 	RETURNING id, product_id, product_name,user_id, created_at, updated_at
 	`
-	err := pool.QueryRow(ctx, query, productId, hash).Scan(
-		&product.ID,
-		&product.ProductId,
-		&product.ProductName,
-		&product.UserId,
-		&product.CreatedAt,
-		&product.UpdatedAt,
-	)
+	rows, err := pool.Query(ctx, query, productId, hash)
+	if err != nil {
+		return nil, err
+	}
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
 	if err != nil {
 		return nil, err
 	}
 	return &product, nil
 }
 
-func GetProductById(pool *pgxpool.Pool, cfg *configs.EnvData, productId int) (*models.Product, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
+func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*models.Product, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	var product models.Product
 	query := `
 	SELECT id, product_id, user_id, COALESCE(private_key,'') as private_key, created_at,updated_at
 	FROM products
 	WHERE product_id = $1
 	`
-	err := pool.QueryRow(ctx, query, productId).Scan(
-		&product.ID,
-		&product.ProductId,
-		&product.UserId,
-		&product.PrivateKey,
-		&product.CreatedAt,
-		&product.UpdatedAt,
-	)
+	rows, err := pool.Query(ctx, query, productId)
 	if err != nil {
 		return nil, err
 	}
+
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
+	if err != nil {
+		return nil, err
+	}
+
 	return &product, nil
 }
 
-func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData, data *domain.CreateProductDetails) (*models.Product, error) {
-	ctx, cancel := utils.CreateContextWithStatedTime(cfg.CONTEXT_TIMEOUT)
+func CreateProduct(ctx context.Context, pool *pgxpool.Pool, data *domain.CreateProductDetails) (*models.Product, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	var product models.Product
 
 	query := `
-	INSERT INTO products (product_name, user_id)
-	VALUES($1, $2)
+	INSERT INTO products (product_name, user_id, public)
+	VALUES($1, $2, $3)
 	RETURNING id,product_id,product_name,user_id,created_at,updated_at
 	`
-	err := pool.QueryRow(ctx, query, data.ProductName, data.UserId).Scan(
-		&product.ID,
-		&product.ProductId,
-		&product.ProductName,
-		&product.UserId,
-		&product.CreatedAt,
-		&product.UpdatedAt,
-	)
+	rows, err := pool.Query(ctx, query, data.ProductName, data.UserId, data.Public)
+	if err != nil {
+		return nil, err
+	}
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
 	if err != nil {
 		return nil, err
 	}

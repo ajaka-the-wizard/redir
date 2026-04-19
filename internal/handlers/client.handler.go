@@ -2,13 +2,18 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strconv"
 
+	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/models"
+	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func HandleClientPing() gin.HandlerFunc {
@@ -26,19 +31,90 @@ func HandleClientPing() gin.HandlerFunc {
 	}
 }
 
-func HandleUpload() gin.HandlerFunc {
+func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		data, err := c.FormFile("image")
+		var mediaBatch []models.Media
+		product, ok := utils.GetProduct(c)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		batchId := c.PostForm("batch_id")
+		batchIdUUID, err := utils.ValidateAndReturnUUID(batchId)
+		if batchId == "" || err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "'batch_id' is either missing or not valid uuid"})
+			return
+		}
+		reader, err := c.Request.MultipartReader()
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Error getting multipart reader"})
 			return
 		}
-		cwd, _ := os.Getwd()
-		dst := filepath.Join(cwd, "stuff", data.Filename)
-		if err := c.SaveUploadedFile(data, dst); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Failed to save file"})
+		medias, err := repository.RetriveBatch(c.Request.Context(), pool, batchIdUUID)
+		if err != pgx.ErrNoRows {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "file uploaded successfully"})
+
+		for {
+			part, err := reader.NextPart()
+			if err == io.EOF {
+				break
+			}
+			seqId := part.Header.Get("X-Sequential-ID")
+			seqIdI, _ := strconv.Atoi(seqId)
+
+			for _, m := range *medias {
+				if m.SeqId == seqIdI {
+					continue
+				}
+			}
+			fileName := part.FileName()
+			contentType := part.Header.Get("Content-Type")
+			innerKey, publicKey := utils.GenerateKeyForUpload(cfg, product.ProductId)
+			client.PutObject(c.Request.Context(), &s3.PutObjectInput{
+				Bucket: &cfg.BUCKET_NAME,
+				Body:   part,
+				Key:    &innerKey,
+				Metadata: map[string]string{
+					"original_name": fileName,
+					"content_type":  contentType,
+				},
+			})
+			mediaBatch = append(mediaBatch, models.Media{
+				PublicKey: publicKey,
+				InnerKey:  innerKey,
+				FileName:  fileName,
+				MimeType:  contentType,
+				UserId:    product.UserId,
+				BatchId:   batchIdUUID,
+				SeqId:     seqIdI,
+				Public:    product.Public,
+			})
+		}
+		media := repository.CreateMediaBatch(pool, &mediaBatch)
+		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "file uploaded successfully", "media": media})
+	}
+}
+
+func HandleBatchCommit(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		batchId := c.Param("batchId")
+		batchIdUUID, err := utils.ValidateAndReturnUUID(batchId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid id given"})
+			return
+		}
+		err = repository.HandleBatchCommits(c.Request.Context(), pool, batchIdUUID)
+
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": fmt.Sprintf("Could not find batch with Id of '%s'", batchIdUUID)})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Batch commited successfully"})
 	}
 }

@@ -26,9 +26,8 @@ func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
 			return
 		}
-		product, err := repository.CreatePrivateKey(pool, cfg, pIdI, hKey)
+		product, err := repository.CreatePrivateKey(c.Request.Context(), pool, pIdI, hKey)
 		if err != nil {
-			log.Println("Hey")
 			log.Println(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
 			return
@@ -49,7 +48,7 @@ func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			return
 		}
 		request.UserId = user.Id
-		product, err := repository.CreateProduct(pool, cfg, request)
+		product, err := repository.CreateProduct(c.Request.Context(), pool, request)
 		if err != nil {
 			log.Println("CP")
 			log.Println(err.Error())

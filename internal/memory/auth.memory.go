@@ -9,13 +9,13 @@ import (
 
 type AuthMemoryMap struct {
 	mu   sync.RWMutex
-	auth map[string]domain.
+	auth map[string]*domain.
 		LightUser
 }
 
 func NewMemoryMap() *AuthMemoryMap {
 	return &AuthMemoryMap{
-		auth: map[string]domain.
+		auth: map[string]*domain.
 			LightUser{},
 	}
 }
@@ -27,7 +27,7 @@ func (m *AuthMemoryMap) SetUserOnline(sessionId string, u *domain.
 	now := time.Now()
 	u.LastAccessedTime = now
 	u.Expires = now.Add(24 * time.Hour)
-	m.auth[sessionId] = *u
+	m.auth[sessionId] = u
 	return now
 }
 
@@ -40,7 +40,7 @@ func (m *AuthMemoryMap) GetUser(sessionId string) (*domain.
 			m.RevokeUser(sessionId)
 			return nil, false
 		}
-		return &u, true
+		return u, true
 	}
 	m.mu.RUnlock()
 	return nil, false
@@ -62,6 +62,5 @@ func (m *AuthMemoryMap) UpdateUserTimestamp(sessionId string) time.Time {
 	}
 	now := time.Now()
 	u.LastAccessedTime = now
-	m.SetUserOnline(sessionId, &u)
 	return now
 }

@@ -7,10 +7,10 @@ import (
 )
 
 type LightUser struct {
-	Id               uuid.UUID
-	Email            string
-	Admin            bool
-	Paid             bool
+	Id               uuid.UUID `db:"id"`
+	Email            string    `db:"email"`
+	Admin            bool      `db:"admin"`
+	Paid             bool      `db:"paid"`
 	LastAccessedTime time.Time
 	Expires          time.Time
 }
@@ -28,6 +28,7 @@ type LoginUserDetails struct {
 type CreateProductDetails struct {
 	ProductName string    `json:"product_name" binding:"required"`
 	UserId      uuid.UUID `json:"-"`
+	Public      bool      `json:"public"`
 }
 
 type GoogleUser struct {

@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"context"
+
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/database"
 	"github.com/ajaka-the-wizard/redir/internal/memory"
@@ -10,8 +12,12 @@ import (
 )
 
 func Listen() error {
+	ctx := context.Background()
 	cfg := configs.LoadEnv()
-	pool := database.Connect_DB(cfg.DATABASE_URL)
+
+	client, presignedClient := configs.PerformAllNecessaryActivationStep(ctx, cfg)
+
+	pool := database.ConnectDB(ctx, cfg.DATABASE_URL)
 	mmap := memory.NewMemoryMap()
 
 	if cfg.PRODUCTION {
@@ -23,7 +29,7 @@ func Listen() error {
 
 	router.Use(middlewares.GenAndAttachRequestIdMiddleware())
 	router.Use(middlewares.AttachLoggerToContext())
-	router.Use(middlewares.PerformBasicCalculations())
+	router.Use(middlewares.PerformBasicRequestCycleCalculations())
 	router.Use(gin.Recovery())
 
 	router.SetTrustedProxies(nil)
@@ -33,7 +39,8 @@ func Listen() error {
 	routes.AuthRoutes(v1, pool, cfg, mmap)
 	routes.UserRoutes(v1, pool, cfg, mmap)
 	routes.ProductRoutes(v1, pool, cfg, mmap)
-	routes.ClientRoutes(v1, pool, cfg)
+	routes.ClientRoutes(v1, pool, cfg, client)
+	routes.AssetRoutes(v1, pool, cfg, presignedClient)
 
 	return router.Run(cfg.SERVER_ADDRESS)
 }

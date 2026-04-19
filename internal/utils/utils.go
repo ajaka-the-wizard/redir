@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"context"
 	"crypto/sha256"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -12,18 +12,12 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/memory"
+	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func CreateContextWithStatedTime(seconds string) (context.Context, context.CancelFunc) {
-	IntSecond, err := strconv.Atoi(seconds)
-	if err != nil {
-		IntSecond = 2
-	}
-	return context.WithTimeout(context.Background(), (time.Duration(IntSecond))*time.Second)
-}
 func GenCleanedUpUUid() string {
 	id := GenUUID()
 	return strings.ReplaceAll(id, "-", "")
@@ -48,8 +42,8 @@ func SetAndGetCookieDetails(n string, v string, s bool, exp time.Time) *http.Coo
 
 func GetUser(c *gin.Context) (*domain.
 	LightUser, bool) {
-	val, exists := c.Get("user")
-	if !exists {
+	val, ok := c.Get("user")
+	if !ok {
 		return nil, false
 	}
 	user, ok := val.(*domain.
@@ -57,20 +51,42 @@ func GetUser(c *gin.Context) (*domain.
 	return user, ok
 }
 
+func GetMedia(c *gin.Context) (*models.Media, bool) {
+	val, ok := c.Get("media")
+	if !ok {
+		return nil, false
+	}
+	media, ok := val.(*models.Media)
+	return media, ok
+}
+
 func GetId(c *gin.Context) (int, bool) {
-	val, exists := c.Get("id")
-	if !exists {
+	val, ok := c.Get("id")
+	if !ok {
 		return 0, false
 	}
 	id, ok := val.(int)
 	return id, ok
 }
 
-func GeneratePrivateKey() string {
-	prefix := "rp_live_"
+func GetProduct(c *gin.Context) (*models.Product, bool) {
+	if p, ok := c.Get("product"); ok {
+		product, ok := p.(*models.Product)
+		return product, ok
+	}
+	return nil, false
+}
+
+func genTwoUUIDsSeparatedBySomething(sep string) string {
 	id1 := GenCleanedUpUUid()
 	id2 := GenCleanedUpUUid()
-	key := prefix + id1 + id2
+	return id1 + sep + id2
+}
+
+func GeneratePrivateKey() string {
+	prefix := "rp_live_"
+	uuids := genTwoUUIDsSeparatedBySomething("")
+	key := prefix + uuids
 	return key
 }
 
@@ -107,7 +123,7 @@ func GetLogger(c *gin.Context) *slog.Logger {
 func PerformLoginActivity(mmap *memory.AuthMemoryMap, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, *http.Cookie) {
 	id := GenCleanedUpUUid()
 	lastAccessedTime := mmap.SetUserOnline(id, user)
-	exp := time.Now().Add(24 * time.Hour)
+	exp := lastAccessedTime.Add(24 * time.Hour)
 	sessionIdCookie := SetAndGetCookieDetails("sessionId", id, cfg.PRODUCTION, exp)
 	lastAccessTimeCookie := SetAndGetCookieDetails("lastUpdateTime", StringifyTime(lastAccessedTime), cfg.PRODUCTION, exp)
 	return sessionIdCookie, lastAccessTimeCookie
@@ -128,4 +144,38 @@ func GetTimeFromCookie(c *gin.Context) (time.Time, error) {
 func StringifyTime(t time.Time) string {
 	str := strconv.FormatInt(t.Unix(), 10)
 	return str
+}
+
+func GenerateKeyForUpload(cfg *configs.EnvData, productId int) (string, string) {
+	return genInnerKey(cfg, productId), genPublicKey(cfg, productId)
+}
+
+func genInnerKey(cfg *configs.EnvData, productId int) string {
+	id := GenUUID()
+	return fmt.Sprintf("%s/%d/%s", cfg.BUCKET_ROOT, productId, id)
+}
+
+func genPublicKey(cfg *configs.EnvData, productId int) string {
+	uuids := genTwoUUIDsSeparatedBySomething("-")
+	return fmt.Sprintf("%s/%d/%s", cfg.DATA_GET_PATH, productId, uuids)
+}
+
+func ValidateAndReturnUUID(s string) (uuid.UUID, error) {
+	return uuid.Parse(s)
+}
+
+func ValidateAssetId(s string) (int, bool) {
+	res := strings.Split(s, "/")
+	left := res[0]
+	productId, err := strconv.Atoi(left)
+	if err != nil {
+		return 0, false
+	}
+	for u := range strings.SplitSeq(res[1], "-") {
+		err = uuid.Validate(u)
+		if err != nil {
+			return 0, false
+		}
+	}
+	return productId, true
 }

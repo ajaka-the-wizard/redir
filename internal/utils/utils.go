@@ -136,7 +136,7 @@ func GetTimeFromCookie(c *gin.Context) (time.Time, error) {
 	}
 	unixTime, err := strconv.ParseInt(cookie, 10, 64)
 	if err != nil {
-		return time.Time{}, nil
+		return time.Time{}, err
 	}
 	return time.Unix(unixTime, 0), nil
 }
@@ -166,8 +166,10 @@ func ValidateAndReturnUUID(s string) (uuid.UUID, error) {
 
 func ValidateAssetId(s string) (int, bool) {
 	res := strings.Split(s, "/")
-	left := res[0]
-	productId, err := strconv.Atoi(left)
+	if len(res) < 2 {
+		return 0, false
+	}
+	productId, err := strconv.Atoi(res[0])
 	if err != nil {
 		return 0, false
 	}

@@ -34,16 +34,18 @@ func (m *AuthMemoryMap) SetUserOnline(sessionId string, u *domain.
 func (m *AuthMemoryMap) GetUser(sessionId string) (*domain.
 	LightUser, bool) {
 	m.mu.RLock()
-	if u, ok := m.auth[sessionId]; ok {
-		if time.Now().After(u.Expires) {
-			m.mu.RUnlock()
-			m.RevokeUser(sessionId)
-			return nil, false
-		}
-		return u, true
+	u, ok := m.auth[sessionId]
+	if !ok {
+		m.mu.Unlock()
+		return nil, false
 	}
+	exp := time.Now().After(u.Expires)
 	m.mu.RUnlock()
-	return nil, false
+	if exp {
+		m.RevokeUser(sessionId)
+		return nil, false
+	}
+	return u, true
 }
 
 func (m *AuthMemoryMap) RevokeUser(sessionId string) {

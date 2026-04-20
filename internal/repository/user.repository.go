@@ -62,7 +62,7 @@ func GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvDat
 	if err != nil {
 		return nil, err
 	}
-	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.User])
+	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.User])
 
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, 
 		return nil, err
 	}
 
-	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.User])
+	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.User])
 
 	if err != nil {
 		return nil, err

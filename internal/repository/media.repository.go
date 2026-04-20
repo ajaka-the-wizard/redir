@@ -18,19 +18,19 @@ func CreateMedia(ctx context.Context, pool *pgxpool.Pool, user_id uuid.UUID, inn
 	VALUES ($1, $2, $3)
 	RETURNING public_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at
 	`
-	rows, err := pool.Query(ctx, query, publicKey, innerKey)
+	rows, err := pool.Query(ctx, query, publicKey, innerKey, user_id)
 	if err != nil {
 		return nil, err
 	}
-	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
+	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Media])
 	if err != nil {
 		return nil, err
 	}
 	return &media, nil
 }
 
-func CreateMediaBatch(pool *pgxpool.Pool, mediaBatch *[]models.Media) *[]models.Media {
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+func CreateMediaBatch(ctx context.Context, pool *pgxpool.Pool, mediaBatch *[]models.Media) *[]models.Media {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var allSavedMedia []models.Media
 	batch := pgx.Batch{}
@@ -53,7 +53,7 @@ func CreateMediaBatch(pool *pgxpool.Pool, mediaBatch *[]models.Media) *[]models.
 		if err != nil {
 			continue
 		}
-		m, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
+		m, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Media])
 		if err != nil {
 			continue
 		}
@@ -68,13 +68,15 @@ func HandleBatchCommits(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UU
 
 	query := `
 	UPDATE medias
-	SET status = completed
+	SET status = 'completed'
 	WHERE batch_id = $1
-	RETURNING public_key
 	`
-	err := pool.QueryRow(ctx, query, batchId).Scan()
+	tag, err := pool.Exec(ctx, query, batchId)
 	if err != nil {
 		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
 	}
 	return nil
 }
@@ -92,7 +94,7 @@ func RetriveBatch(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
-	medias, err := pgx.CollectRows(rows, pgx.RowToStructByName[models.Media])
+	medias, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[models.Media])
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +114,7 @@ func GetMedia(ctx context.Context, pool *pgxpool.Pool, publicKey string) (*model
 	if err != nil {
 		return nil, err
 	}
-	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
+	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Media])
 	if err != nil {
 		return nil, err
 	}

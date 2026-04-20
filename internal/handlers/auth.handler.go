@@ -109,8 +109,10 @@ func HandleLogout(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.HandlerF
 		sessionId, _ := val.(string)
 		mmap.RevokeUser(sessionId)
 		exp := time.Now().Add(-1 * time.Second)
-		cookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.PRODUCTION, exp)
-		c.SetCookieData(cookie)
+		sessioncookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.PRODUCTION, exp)
+		lastAccessCookie := utils.SetAndGetCookieDetails("lastUpdateTime", "", cfg.PRODUCTION, exp)
+		c.SetCookieData(sessioncookie)
+		c.SetCookieData(lastAccessCookie)
 		c.Status(http.StatusNoContent)
 	}
 }

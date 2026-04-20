@@ -8,6 +8,6 @@ import (
 
 func HandlePing() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "pong"})
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "pong"})
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -12,11 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-func initWhatEverBucket(cfg *EnvData) (*s3.Client, error) {
+func initWhatEverBucket(ctx context.Context, cfg *EnvData) (*s3.Client, error) {
 
 	staticProvider := credentials.NewStaticCredentialsProvider(cfg.STORAGE_SERVICE_ACCESS_KEY_ID, cfg.STORAGE_SERVICE_SECRET_ACCESS_KEY, "")
 
-	cfgs, err := config.LoadDefaultConfig(context.Background(), config.WithRegion("us-east-1"), config.WithCredentialsProvider(staticProvider))
+	cfgs, err := config.LoadDefaultConfig(ctx, config.WithRegion("us-east-1"), config.WithCredentialsProvider(staticProvider))
 
 	client := s3.NewFromConfig(cfgs, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(cfg.STORAGE_SERVICE_ENDPOINT)
@@ -33,17 +34,23 @@ func ensureBucketExists(ctx context.Context, client *s3.Client, bucket string) {
 		var ownedErr *types.BucketAlreadyOwnedByYou
 		var existsErr *types.BucketAlreadyExists
 
-		if errors.As(err, &ownedErr) || errors.As(err, &existsErr) {
+		if errors.As(err, &ownedErr) {
 			log.Printf("Bucket %s already exists,skipping creation.", bucket)
 			return
 		}
-		log.Fatal("Failed to create bucket: %w", err)
+		if errors.As(err, &existsErr) {
+			log.Fatalf("Bucket %s already exists but owned by a different account", bucket)
+		}
+		log.Fatalf("Failed to create bucket: %v", err)
 	}
 	log.Printf("Bucket %s Created Successfully", bucket)
 }
 
 func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData) (*s3.Client, *s3.PresignClient) {
-	client, err := initWhatEverBucket(cfg)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	client, err := initWhatEverBucket(ctx, cfg)
 	if err != nil {
 		log.Fatal("Couldnt load default configurations")
 	}

@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ConnectDB(ctxx context.Context, databaseUrl string) *pgxpool.Pool {
-	ctx, cancel := context.WithTimeout(ctxx, 10*time.Second)
+func ConnectDB(ctx context.Context, databaseUrl string) *pgxpool.Pool {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	config, err := pgxpool.ParseConfig(databaseUrl)
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 
 type Media struct {
 	PublicKey string    `json:"public_key" db:"public_key"`
-	InnerKey  string    `json:"_" db:"inner_key"`
+	InnerKey  string    `json:"-" db:"inner_key"`
 	BatchId   uuid.UUID `json:"batch_id" db:"batch_id"`
 	SeqId     int       `json:"seq_id" db:"seq_id"`
 	UserId    uuid.UUID `json:"user_id" db:"user_id"`

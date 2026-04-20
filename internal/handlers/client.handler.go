@@ -20,8 +20,7 @@ func HandleClientPing() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		logger.Info("ping attempt from client")
-		val, _ := c.Get("client")
-		client, ok := val.(*models.Product)
+		client, ok := utils.GetProduct(c)
 		if !ok {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			return
@@ -51,28 +50,38 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) g
 			return
 		}
 		medias, err := repository.RetriveBatch(c.Request.Context(), pool, batchIdUUID)
-		if err != pgx.ErrNoRows {
+		if err != nil && err != pgx.ErrNoRows {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
+		}
+		existing := map[int]struct{}{}
+		if medias != nil {
+			for _, m := range *medias {
+				existing[m.SeqId] = struct{}{}
+			}
 		}
 
 		for {
 			part, err := reader.NextPart()
-			if err == io.EOF {
-				break
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "multipart read error"})
+				return
+
 			}
 			seqId := part.Header.Get("X-Sequential-ID")
 			seqIdI, _ := strconv.Atoi(seqId)
 
-			for _, m := range *medias {
-				if m.SeqId == seqIdI {
-					continue
-				}
+			if _, ok := existing[seqIdI]; ok {
+				continue
 			}
+
 			fileName := part.FileName()
 			contentType := part.Header.Get("Content-Type")
 			innerKey, publicKey := utils.GenerateKeyForUpload(cfg, product.ProductId)
-			client.PutObject(c.Request.Context(), &s3.PutObjectInput{
+			if _, err := client.PutObject(c.Request.Context(), &s3.PutObjectInput{
 				Bucket: &cfg.BUCKET_NAME,
 				Body:   part,
 				Key:    &innerKey,
@@ -80,7 +89,9 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) g
 					"original_name": fileName,
 					"content_type":  contentType,
 				},
-			})
+			}); err != nil {
+				continue
+			}
 			mediaBatch = append(mediaBatch, models.Media{
 				PublicKey: publicKey,
 				InnerKey:  innerKey,
@@ -92,7 +103,7 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) g
 				Public:    product.Public,
 			})
 		}
-		media := repository.CreateMediaBatch(pool, &mediaBatch)
+		media := repository.CreateMediaBatch(c.Request.Context(), pool, &mediaBatch)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "file uploaded successfully", "media": media})
 	}
 }

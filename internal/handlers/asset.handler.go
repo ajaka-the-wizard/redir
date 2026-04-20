@@ -19,11 +19,15 @@ func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient) gin
 			return
 		}
 
-		preSignedUrl, _ := presignedClient.PresignGetObject(c.Request.Context(), &s3.GetObjectInput{
+		preSignedUrl, err := presignedClient.PresignGetObject(c.Request.Context(), &s3.GetObjectInput{
 			Bucket: aws.String(cfg.BUCKET_NAME),
 			Key:    aws.String(media.InnerKey),
 		}, s3.WithPresignExpires(time.Minute*30))
 
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
 		c.Redirect(http.StatusFound, preSignedUrl.URL)
 	}
 }

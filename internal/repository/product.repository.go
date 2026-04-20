@@ -23,7 +23,7 @@ func CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, ha
 	if err != nil {
 		return nil, err
 	}
-	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*mo
 		return nil, err
 	}
 
-	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func CreateProduct(ctx context.Context, pool *pgxpool.Pool, data *domain.CreateP
 	if err != nil {
 		return nil, err
 	}
-	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
 	if err != nil {
 		return nil, err
 	}

@@ -14,11 +14,12 @@ import (
 func Listen() error {
 	ctx := context.Background()
 	cfg := configs.LoadEnv()
+	rdb := memory.InitializeRedis(ctx, cfg)
+	defer rdb.Clean()
 
-	client, presignedClient := configs.PerformAllNecessaryActivationStep(ctx, cfg)
+	_, presignedClient, tm := configs.PerformAllNecessaryActivationStep(ctx, cfg)
 
 	pool := database.ConnectDB(ctx, cfg.DATABASE_URL)
-	mmap := memory.NewMemoryMap()
 
 	if cfg.PRODUCTION {
 		gin.SetMode(gin.ReleaseMode)
@@ -36,10 +37,10 @@ func Listen() error {
 
 	v1 := router.Group("/api/v1")
 
-	routes.AuthRoutes(v1, pool, cfg, mmap)
-	routes.UserRoutes(v1, pool, cfg, mmap)
-	routes.ProductRoutes(v1, pool, cfg, mmap)
-	routes.ClientRoutes(v1, pool, cfg, client)
+	routes.AuthRoutes(v1, pool, cfg, rdb)
+	routes.UserRoutes(v1, pool, cfg, rdb)
+	routes.ProductRoutes(v1, pool, cfg, rdb)
+	routes.ClientRoutes(v1, pool, cfg, tm)
 	routes.AssetRoutes(v1, pool, cfg, presignedClient)
 
 	return router.Run(cfg.SERVER_ADDRESS)

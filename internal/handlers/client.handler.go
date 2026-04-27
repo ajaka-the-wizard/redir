@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,18 +31,19 @@ func HandleClientPing() gin.HandlerFunc {
 	}
 }
 
-func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) gin.HandlerFunc {
+func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var mediaBatch []models.Media
+		valid := false
 		product, ok := utils.GetProduct(c)
 		if !ok {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
-		batchId := c.PostForm("batch_id")
+		batchId := c.GetHeader("X-Batch-ID")
 		batchIdUUID, err := utils.ValidateAndReturnUUID(batchId)
 		if batchId == "" || err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "'batch_id' is either missing or not valid uuid"})
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "'X-Batch-ID' header is either missing or not valid uuid"})
 			return
 		}
 		reader, err := c.Request.MultipartReader()
@@ -60,38 +62,48 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) g
 				existing[m.SeqId] = struct{}{}
 			}
 		}
-
 		for {
 			part, err := reader.NextPart()
 			if err != nil {
 				if err == io.EOF {
+					if !valid {
+						c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Nothing was received"})
+						return
+					}
 					break
 				}
 				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "multipart read error"})
 				return
-
 			}
+			valid = true
 			seqId := part.Header.Get("X-Sequential-ID")
 			seqIdI, _ := strconv.Atoi(seqId)
-
+			log.Println("Checking existence", part.FileName(), seqIdI)
 			if _, ok := existing[seqIdI]; ok {
+				log.Println("found", part.FileName(), seqIdI)
 				continue
 			}
 
 			fileName := part.FileName()
 			contentType := part.Header.Get("Content-Type")
 			innerKey, publicKey := utils.GenerateKeyForUpload(cfg, product.ProductId)
-			if _, err := client.PutObject(c.Request.Context(), &s3.PutObjectInput{
+			log.Println("Uploading file", part.FileName())
+			_, err = tm.UploadObject(c.Request.Context(), &transfermanager.UploadObjectInput{
 				Bucket: &cfg.BUCKET_NAME,
-				Body:   part,
 				Key:    &innerKey,
+				Body:   part,
 				Metadata: map[string]string{
 					"original_name": fileName,
 					"content_type":  contentType,
 				},
-			}); err != nil {
+			})
+
+			if err != nil {
+				log.Println("Error while uploading", seqIdI, err)
 				continue
+
 			}
+			log.Println("Batching", seqIdI)
 			mediaBatch = append(mediaBatch, models.Media{
 				PublicKey: publicKey,
 				InnerKey:  innerKey,
@@ -103,7 +115,13 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, client *s3.Client) g
 				Public:    product.Public,
 			})
 		}
+		if len(mediaBatch) == 0 {
+			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "They all failed"})
+			return
+		}
+		log.Println("batch", len(mediaBatch))
 		media := repository.CreateMediaBatch(c.Request.Context(), pool, &mediaBatch)
+		utils.HydrateMedias(cfg, *media)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "file uploaded successfully", "media": media})
 	}
 }

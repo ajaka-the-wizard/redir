@@ -17,13 +17,13 @@ func CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, ha
 	update products
 	SET private_key = $2,updated_at = CURRENT_TIMESTAMP
 	WHERE product_id = $1
-	RETURNING id, product_id, product_name,user_id, created_at, updated_at
+	RETURNING id, product_id, product_name,user_id, created_at, updated_at, public, private_key
 	`
 	rows, err := pool.Query(ctx, query, productId, hash)
 	if err != nil {
 		return nil, err
 	}
-	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*mo
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
-	SELECT id, product_id, user_id, COALESCE(private_key,'') as private_key, created_at,updated_at
+	SELECT id, product_id, user_id, COALESCE(private_key,'') as private_key, created_at, updated_at, public, product_name
 	FROM products
 	WHERE product_id = $1
 	`
@@ -43,7 +43,7 @@ func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*mo
 		return nil, err
 	}
 
-	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
 	if err != nil {
 		return nil, err
 	}

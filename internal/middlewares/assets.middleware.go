@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
@@ -13,20 +14,20 @@ import (
 
 func CheckIfAssetIsPublic(cfg *configs.EnvData, pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		assetId := c.Param("assetId")
-		if assetId == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Could not get the asset id"})
+		publicKey := c.Param("assetId")
+		if publicKey == "" {
+			log.Println("couldn't get assetId")
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Could not get the public key"})
 			c.Abort()
 			return
 		}
-		_, ok := utils.ValidateAssetId(assetId)
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid asset id"})
+		if _, ok := utils.ValidatePublicKey(publicKey); !ok {
+			log.Println("Asset was invalid", publicKey)
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid public key"})
 			c.Abort()
 			return
 		}
-		normalised := cfg.DATA_GET_PATH + "/" + assetId
-		media, err := repository.GetMedia(c.Request.Context(), pool, normalised)
+		media, err := repository.GetMedia(c.Request.Context(), pool, publicKey)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": http.StatusText(http.StatusNotFound)})
@@ -42,8 +43,8 @@ func CheckIfAssetIsPublic(cfg *configs.EnvData, pool *pgxpool.Pool) gin.HandlerF
 			c.Abort()
 			return
 		}
-		c.Set("publicKey", normalised)
-		c.Set("media", &media)
+		c.Set("publicKey", publicKey)
+		c.Set("media", media)
 		c.Next()
 	}
 }

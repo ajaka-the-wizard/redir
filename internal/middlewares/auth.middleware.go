@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/memory"
@@ -17,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func AuthMiddleware(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.HandlerFunc {
+func AuthMiddleware(rdb *memory.Sredis, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionId, err := c.Cookie("sessionId")
 		if err != nil {
@@ -25,22 +24,11 @@ func AuthMiddleware(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.Handle
 			c.Abort()
 			return
 		}
-		user, ok := mmap.GetUser(sessionId)
+		user, ok := rdb.GetUser(c.Request.Context(), sessionId)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid or expired sessionId"})
 			c.Abort()
 			return
-		}
-		lastUpdatedTime, err := utils.GetTimeFromCookie(c)
-
-		if err != nil && err != http.ErrNoCookie {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid Timestamp"})
-			return
-		}
-		if err == http.ErrNoCookie || time.Since(lastUpdatedTime) > 5*time.Minute {
-			nextTime := mmap.UpdateUserTimestamp(sessionId)
-			cookie := utils.SetAndGetCookieDetails("lastUpdateTime", utils.StringifyTime(nextTime), cfg.PRODUCTION, nextTime.Add(24*time.Hour))
-			c.SetCookieData(cookie)
 		}
 		c.Set("sessionId", sessionId)
 		c.Set("user", user)

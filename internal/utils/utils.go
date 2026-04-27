@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"context"
 	"crypto/sha256"
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -54,10 +56,15 @@ func GetUser(c *gin.Context) (*domain.
 func GetMedia(c *gin.Context) (*models.Media, bool) {
 	val, ok := c.Get("media")
 	if !ok {
+		log.Println("from exists")
 		return nil, false
 	}
 	media, ok := val.(*models.Media)
-	return media, ok
+	if !ok {
+		log.Println("from cast", val)
+		return nil, false
+	}
+	return media, true
 }
 
 func GetId(c *gin.Context) (int, bool) {
@@ -120,13 +127,14 @@ func GetLogger(c *gin.Context) *slog.Logger {
 	return slog.Default()
 }
 
-func PerformLoginActivity(mmap *memory.AuthMemoryMap, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, *http.Cookie) {
+func PerformLoginActivity(ctx context.Context, rdb *memory.Sredis, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, error) {
 	id := GenCleanedUpUUid()
-	lastAccessedTime := mmap.SetUserOnline(id, user)
-	exp := lastAccessedTime.Add(24 * time.Hour)
+	exp, err := rdb.SetUserOnline(ctx, id, user)
+	if err != nil {
+		return nil, err
+	}
 	sessionIdCookie := SetAndGetCookieDetails("sessionId", id, cfg.PRODUCTION, exp)
-	lastAccessTimeCookie := SetAndGetCookieDetails("lastUpdateTime", StringifyTime(lastAccessedTime), cfg.PRODUCTION, exp)
-	return sessionIdCookie, lastAccessTimeCookie
+	return sessionIdCookie, nil
 }
 
 func GetTimeFromCookie(c *gin.Context) (time.Time, error) {
@@ -147,7 +155,7 @@ func StringifyTime(t time.Time) string {
 }
 
 func GenerateKeyForUpload(cfg *configs.EnvData, productId int) (string, string) {
-	return genInnerKey(cfg, productId), genPublicKey(cfg, productId)
+	return genInnerKey(cfg, productId), genPublicKey(productId)
 }
 
 func genInnerKey(cfg *configs.EnvData, productId int) string {
@@ -155,29 +163,39 @@ func genInnerKey(cfg *configs.EnvData, productId int) string {
 	return fmt.Sprintf("%s/%d/%s", cfg.BUCKET_ROOT, productId, id)
 }
 
-func genPublicKey(cfg *configs.EnvData, productId int) string {
+func genPublicKey(productId int) string {
+	const sep string = "s"
 	uuids := genTwoUUIDsSeparatedBySomething("-")
-	return fmt.Sprintf("%s/%d/%s", cfg.DATA_GET_PATH, productId, uuids)
+	return fmt.Sprintf("%d%s%s", productId, sep, uuids)
 }
 
 func ValidateAndReturnUUID(s string) (uuid.UUID, error) {
 	return uuid.Parse(s)
 }
 
-func ValidateAssetId(s string) (int, bool) {
-	res := strings.Split(s, "/")
-	if len(res) < 2 {
-		return 0, false
-	}
-	productId, err := strconv.Atoi(res[0])
+func ValidatePublicKey(s string) (int, bool) {
+	var id int
+	var others string
+
+	_, err := fmt.Sscanf(s, "%d%s", &id, &others)
 	if err != nil {
+		log.Println("From here")
 		return 0, false
 	}
-	for u := range strings.SplitSeq(res[1], "-") {
+	others = strings.TrimPrefix(others, "s")
+	log.Println("others:", others)
+	for u := range strings.SplitSeq(others, "-") {
 		err = uuid.Validate(u)
 		if err != nil {
+			log.Println("From this place")
 			return 0, false
 		}
 	}
-	return productId, true
+	return id, true
+}
+
+func HydrateMedias(cfg *configs.EnvData, m []models.Media) {
+	for i := range m {
+		m[i].PublicKey = cfg.DATA_GET_PATH + m[i].PublicKey
+	}
 }

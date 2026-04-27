@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func UserRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) {
+func UserRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, rdb *memory.Sredis) {
 	user := rg.Group("/users")
 	user.Use(middlewares.RL.GetLimiterForProductAndUser(10))
-	user.Use(middlewares.AuthMiddleware(mmap, cfg))
+	user.Use(middlewares.AuthMiddleware(rdb, cfg))
 	user.GET("/me", handlers.GetUser(pool, cfg))
 }

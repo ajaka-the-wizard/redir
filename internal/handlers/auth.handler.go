@@ -57,7 +57,7 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 	}
 }
 
-func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) gin.HandlerFunc {
+func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, rdb *memory.Sredis) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		logger.Info("Starting user login attempt")
@@ -95,24 +95,29 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 			Paid:  user.Paid,
 		}
 
-		sessionCookie, lastAccessedTimeCookie := utils.PerformLoginActivity(mmap, cfg, &lightUser)
+		sessionCookie, err := utils.PerformLoginActivity(c.Request.Context(), rdb, cfg, &lightUser)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong, couldn't sign you in"})
+			return
+		}
 		c.SetCookieData(sessionCookie)
-		c.SetCookieData(lastAccessedTimeCookie)
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "User logged in successfully"})
 		logger.Info("User logged in successfully")
 	}
 }
 
-func HandleLogout(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.HandlerFunc {
+func HandleLogout(rdb *memory.Sredis, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		val, _ := c.Get("sessionId")
 		sessionId, _ := val.(string)
-		mmap.RevokeUser(sessionId)
+		err := rdb.RevokeUser(c.Request.Context(), sessionId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
 		exp := time.Now().Add(-1 * time.Second)
 		sessioncookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.PRODUCTION, exp)
-		lastAccessCookie := utils.SetAndGetCookieDetails("lastUpdateTime", "", cfg.PRODUCTION, exp)
 		c.SetCookieData(sessioncookie)
-		c.SetCookieData(lastAccessCookie)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -145,7 +150,7 @@ func (g *GoogleOauth) HandleRedirectToGoogle(cfg *configs.EnvData) gin.HandlerFu
 	}
 }
 
-func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) gin.HandlerFunc {
+func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvData, rdb *memory.Sredis) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := "google"
 		// logger := utils.GetLogger(c)
@@ -207,9 +212,12 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 				return
 			}
 		}
-		sessionIdCookie, lastAccessTimeCookie := utils.PerformLoginActivity(mmap, cfg, u)
+		sessionIdCookie, err := utils.PerformLoginActivity(c.Request.Context(), rdb, cfg, u)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong, couldn't sign you in"})
+			return
+		}
 		c.SetCookieData(sessionIdCookie)
-		c.SetCookieData(lastAccessTimeCookie)
 		c.Redirect(http.StatusFound, cfg.CLIENT_DASHBOARD)
 	}
 }

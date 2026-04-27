@@ -7,10 +7,10 @@ import (
 )
 
 type LightUser struct {
-	Id               uuid.UUID `db:"id"`
-	Email            string    `db:"email"`
-	Admin            bool      `db:"admin"`
-	Paid             bool      `db:"paid"`
+	Id               uuid.UUID `db:"id" redis:"id"`
+	Email            string    `db:"email" redis:"email"`
+	Admin            bool      `db:"admin" redis:"admin"`
+	Paid             bool      `db:"paid" redis:"paid"`
 	LastAccessedTime time.Time
 	Expires          time.Time
 }

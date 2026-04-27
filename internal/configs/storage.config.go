@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -22,6 +23,8 @@ func initWhatEverBucket(ctx context.Context, cfg *EnvData) (*s3.Client, error) {
 	client := s3.NewFromConfig(cfgs, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(cfg.STORAGE_SERVICE_ENDPOINT)
 		o.UsePathStyle = true
+		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 	return client, err
 }
@@ -46,7 +49,7 @@ func ensureBucketExists(ctx context.Context, client *s3.Client, bucket string) {
 	log.Printf("Bucket %s Created Successfully", bucket)
 }
 
-func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData) (*s3.Client, *s3.PresignClient) {
+func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData) (*s3.Client, *s3.PresignClient, *transfermanager.Client) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -56,5 +59,6 @@ func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData) (*s3.C
 	}
 	ensureBucketExists(ctx, client, cfg.BUCKET_NAME)
 	presignedClient := s3.NewPresignClient(client)
-	return client, presignedClient
+	tm := transfermanager.New(client)
+	return client, presignedClient, tm
 }

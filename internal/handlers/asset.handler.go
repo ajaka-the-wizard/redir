@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -15,16 +16,17 @@ func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient) gin
 	return func(c *gin.Context) {
 		media, ok := utils.GetMedia(c)
 		if !ok {
+			log.Println("From ok")
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
-
 		preSignedUrl, err := presignedClient.PresignGetObject(c.Request.Context(), &s3.GetObjectInput{
 			Bucket: aws.String(cfg.BUCKET_NAME),
 			Key:    aws.String(media.InnerKey),
 		}, s3.WithPresignExpires(time.Minute*30))
 
 		if err != nil {
+			log.Println("from presigned",err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}

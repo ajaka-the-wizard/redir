@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/models"
@@ -16,13 +17,13 @@ func CreateMedia(ctx context.Context, pool *pgxpool.Pool, user_id uuid.UUID, inn
 	query := `
 	INSERT INTO medias (public_key, inner_key,user_id)
 	VALUES ($1, $2, $3)
-	RETURNING public_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at
+	RETURNING public_key, inner_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at, batch_id,seq_id,public,mime_type,hits,
 	`
 	rows, err := pool.Query(ctx, query, publicKey, innerKey, user_id)
 	if err != nil {
 		return nil, err
 	}
-	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Media])
+	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
 	if err != nil {
 		return nil, err
 	}
@@ -38,23 +39,25 @@ func CreateMediaBatch(ctx context.Context, pool *pgxpool.Pool, mediaBatch *[]mod
 	for _, f := range *mediaBatch {
 		batch.Queue(
 			`
-				INSERT INTO medias (public_key, inner_key, user_id, file_name, mime_type, batch_id, seq_id)
-				VALUES ($1, $2, $3, $4, $5, $6, $7)
-				RETURNING public_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at
-				`, f.PublicKey, f.InnerKey, f.UserId, f.FileName, f.MimeType, f.BatchId, f.SeqId,
+				INSERT INTO medias (public_key, inner_key, user_id, file_name, mime_type, batch_id, seq_id, public)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				RETURNING public_key, inner_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at, batch_id,seq_id, public, mime_type, hits
+				`, f.PublicKey, f.InnerKey, f.UserId, f.FileName, f.MimeType, f.BatchId, f.SeqId, f.Public,
 		)
 	}
 	results := pool.SendBatch(ctx, &batch)
 	defer results.Close()
 
-	for i := 0; i < len(*mediaBatch); i++ {
+	for range *mediaBatch {
 		rows, err := results.Query()
 
 		if err != nil {
+			log.Println("error with query", err)
 			continue
 		}
-		m, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Media])
+		m, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
 		if err != nil {
+			log.Println("error with collect", err)
 			continue
 		}
 		allSavedMedia = append(allSavedMedia, m)
@@ -88,13 +91,13 @@ func RetriveBatch(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) (*
 	query := `
 	SELECT * 
 	FROM medias
-	WHERE batch_id = $1
+	WHERE batch_id = $1 and status = 'pending'
 	`
 	rows, err := pool.Query(ctx, query, batchId)
 	if err != nil {
 		return nil, err
 	}
-	medias, err := pgx.CollectRows(rows, pgx.RowToStructByNameLax[models.Media])
+	medias, err := pgx.CollectRows(rows, pgx.RowToStructByName[models.Media])
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +117,7 @@ func GetMedia(ctx context.Context, pool *pgxpool.Pool, publicKey string) (*model
 	if err != nil {
 		return nil, err
 	}
-	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Media])
+	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
 	if err != nil {
 		return nil, err
 	}

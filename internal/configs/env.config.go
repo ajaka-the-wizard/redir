@@ -28,6 +28,8 @@ type EnvData struct {
 	BUCKET_ROOT                       string
 	DOMAIN                            string
 	DATA_GET_PATH                     string
+	REDIS_ADDR                        string
+	REDIS_PASSWORD                    string
 }
 
 func LoadEnv() *EnvData {
@@ -56,6 +58,8 @@ func LoadEnv() *EnvData {
 		BUCKET_ROOT:                       os.Getenv("BUCKET_ROOT"),
 		DOMAIN:                            os.Getenv("DOMAIN"),
 		DATA_GET_PATH:                     os.Getenv("DATA_GET_PATH"),
+		REDIS_ADDR:                        os.Getenv("REDIS_ADDR"),
+		REDIS_PASSWORD:                    os.Getenv("REDIS_PASSWORD"),
 	}
 	config.PRODUCTION = config.ENVIRONMENT == "production"
 	log.Println("Enviroments variables loaded")

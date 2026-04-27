@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS metrics(
     id BIGSERIAL PRIMARY KEY,
-    media_id UUID REFERENCES medias(public_key) ON DELETE CASCADE,
+    media_id TEXT REFERENCES medias(public_key) ON DELETE CASCADE,
     ip INET,
     browser TEXT,
     os TEXT,

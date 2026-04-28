@@ -13,8 +13,8 @@ import (
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
-	"github.com/ajaka-the-wizard/redir/internal/memory"
 	"github.com/ajaka-the-wizard/redir/internal/models"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -127,9 +127,9 @@ func GetLogger(c *gin.Context) *slog.Logger {
 	return slog.Default()
 }
 
-func PerformLoginActivity(ctx context.Context, rdb *memory.Sredis, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, error) {
+func PerformLoginActivity(ctx context.Context, store *store.Store, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, error) {
 	id := GenCleanedUpUUid()
-	exp, err := rdb.SetUserOnline(ctx, id, user)
+	exp, err := store.SetUserOnline(ctx, id, user)
 	if err != nil {
 		return nil, err
 	}
@@ -179,11 +179,9 @@ func ValidatePublicKey(s string) (int, bool) {
 
 	_, err := fmt.Sscanf(s, "%d%s", &id, &others)
 	if err != nil {
-		log.Println("From here")
 		return 0, false
 	}
 	others = strings.TrimPrefix(others, "s")
-	log.Println("others:", others)
 	for u := range strings.SplitSeq(others, "-") {
 		err = uuid.Validate(u)
 		if err != nil {

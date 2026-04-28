@@ -5,14 +5,14 @@ import (
 	"net/http"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CheckIfAssetIsPublic(cfg *configs.EnvData, pool *pgxpool.Pool) gin.HandlerFunc {
+func CheckIfAssetIsPublic(cfg *configs.EnvData, pool *pgxpool.Pool, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		publicKey := c.Param("assetId")
 		if publicKey == "" {
@@ -27,13 +27,14 @@ func CheckIfAssetIsPublic(cfg *configs.EnvData, pool *pgxpool.Pool) gin.HandlerF
 			c.Abort()
 			return
 		}
-		media, err := repository.GetMedia(c.Request.Context(), pool, publicKey)
+		media, err := store.GetMedia(c.Request.Context(), pool, publicKey)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": http.StatusText(http.StatusNotFound)})
 				c.Abort()
 				return
 			}
+			log.Println("story", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			c.Abort()
 			return

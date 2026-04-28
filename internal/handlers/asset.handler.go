@@ -26,7 +26,7 @@ func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient) gin
 		}, s3.WithPresignExpires(time.Minute*30))
 
 		if err != nil {
-			log.Println("from presigned",err)
+			log.Println("from presigned", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/models"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/gin-gonic/gin"
@@ -31,7 +31,7 @@ func HandleClientPing() gin.HandlerFunc {
 	}
 }
 
-func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.Client) gin.HandlerFunc {
+func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.Client, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var mediaBatch []models.Media
 		valid := false
@@ -51,7 +51,7 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Error getting multipart reader"})
 			return
 		}
-		medias, err := repository.RetriveBatch(c.Request.Context(), pool, batchIdUUID)
+		medias, err := store.RetriveBatch(c.Request.Context(), pool, batchIdUUID)
 		if err != nil && err != pgx.ErrNoRows {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
@@ -120,13 +120,13 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.
 			return
 		}
 		log.Println("batch", len(mediaBatch))
-		media := repository.CreateMediaBatch(c.Request.Context(), pool, &mediaBatch)
+		media := store.CreateMediaBatch(c.Request.Context(), pool, &mediaBatch)
 		utils.HydrateMedias(cfg, *media)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "file uploaded successfully", "media": media})
 	}
 }
 
-func HandleBatchCommit(pool *pgxpool.Pool) gin.HandlerFunc {
+func HandleBatchCommit(pool *pgxpool.Pool, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		batchId := c.Param("batchId")
 		batchIdUUID, err := utils.ValidateAndReturnUUID(batchId)
@@ -134,7 +134,7 @@ func HandleBatchCommit(pool *pgxpool.Pool) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid id given"})
 			return
 		}
-		err = repository.HandleBatchCommits(c.Request.Context(), pool, batchIdUUID)
+		err = store.HandleBatchCommits(c.Request.Context(), pool, batchIdUUID)
 
 		if err != nil {
 			if err == pgx.ErrNoRows {

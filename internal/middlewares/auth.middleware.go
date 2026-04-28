@@ -8,15 +8,14 @@ import (
 	"strings"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
-	"github.com/ajaka-the-wizard/redir/internal/memory"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func AuthMiddleware(rdb *memory.Sredis, cfg *configs.EnvData) gin.HandlerFunc {
+func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionId, err := c.Cookie("sessionId")
 		if err != nil {
@@ -24,7 +23,7 @@ func AuthMiddleware(rdb *memory.Sredis, cfg *configs.EnvData) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		user, ok := rdb.GetUser(c.Request.Context(), sessionId)
+		user, ok := store.GetUser(c.Request.Context(), sessionId)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid or expired sessionId"})
 			c.Abort()
@@ -36,7 +35,7 @@ func AuthMiddleware(rdb *memory.Sredis, cfg *configs.EnvData) gin.HandlerFunc {
 	}
 }
 
-func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		pId := c.GetHeader("X-Product")
 		pKey := c.GetHeader("Authorization")
@@ -52,7 +51,7 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.Ha
 			c.Abort()
 			return
 		}
-		product, err := repository.GetProductById(c.Request.Context(), pool, pIdI)
+		product, err := store.GetProductById(c.Request.Context(), pool, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
@@ -76,7 +75,7 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.Ha
 	}
 }
 
-func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := utils.GetUser(c)
 		if !ok || user == nil {
@@ -91,7 +90,7 @@ func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.H
 			c.Abort()
 			return
 		}
-		product, err := repository.GetProductById(c.Request.Context(), pool, pIdI)
+		product, err := store.GetProductById(c.Request.Context(), pool, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})

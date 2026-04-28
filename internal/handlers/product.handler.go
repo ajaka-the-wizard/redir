@@ -6,13 +6,13 @@ import (
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// user, ok := utils.GetUser(c)
 		pIdI, ok := utils.GetId(c)
@@ -26,7 +26,7 @@ func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
 			return
 		}
-		product, err := repository.CreatePrivateKey(c.Request.Context(), pool, pIdI, hKey)
+		product, err := store.CreatePrivateKey(c.Request.Context(), pool, pIdI, hKey)
 		if err != nil {
 			log.Println(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Something went wrong"})
@@ -37,7 +37,7 @@ func GenerateKey(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 	}
 }
 
-func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, _ := utils.GetUser(c)
 		val, _ := c.Get("product")
@@ -48,7 +48,7 @@ func CreateProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
 			return
 		}
 		request.UserId = user.Id
-		product, err := repository.CreateProduct(c.Request.Context(), pool, request)
+		product, err := store.CreateProduct(c.Request.Context(), pool, request)
 		if err != nil {
 			log.Println("CP")
 			log.Println(err.Error())

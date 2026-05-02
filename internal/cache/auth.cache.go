@@ -17,8 +17,9 @@ func (r *Sredis) SetUserOnline(ctx context.Context, sessionId string, u *domain.
 	defer cancel()
 	key := "user:" + sessionId
 	exp := time.Hour * 24
+	m := structToInterface(*u)
 	pipe := r.rdb.Pipeline()
-	pipe.HSet(ctx, key, *u)
+	pipe.HSet(ctx, key, m)
 	pipe.Expire(ctx, key, exp)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
@@ -33,7 +34,12 @@ func (r *Sredis) GetUser(ctx context.Context, sessionId string) (*domain.
 	defer cancel()
 	var user domain.LightUser
 	key := "user:" + sessionId
-	err := r.rdb.HGetAll(ctx, key).Scan(&user)
+	s := r.rdb.HGetAll(ctx, key)
+	u, err := s.Result()
+	if err != nil || len(u) == 0 {
+		return nil, false
+	}
+	err = s.Scan(&user)
 	if err != nil {
 		return nil, false
 	}

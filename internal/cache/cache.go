@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
+	fts "github.com/fatih/structs"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -30,4 +32,16 @@ func InitializeRedis(ctx context.Context, cfg *configs.EnvData) *Sredis {
 	return &Sredis{
 		rdb,
 	}
+}
+
+func structToInterface(s any) map[string]any {
+	t := fts.New(s)
+	t.TagName = "redis"
+	m := t.Map()
+	for k, v := range m {
+		if u, ok := v.(uuid.UUID); ok {
+			m[k] = u.String()
+		}
+	}
+	return m
 }

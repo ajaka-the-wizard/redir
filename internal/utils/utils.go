@@ -191,9 +191,3 @@ func ValidatePublicKey(s string) (int, bool) {
 	}
 	return id, true
 }
-
-func HydrateMedias(cfg *configs.EnvData, m []models.Media) {
-	for i := range m {
-		m[i].PublicKey = cfg.DATA_GET_PATH + m[i].PublicKey
-	}
-}

@@ -121,7 +121,7 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.
 		}
 		log.Println("batch", len(mediaBatch))
 		media := store.CreateMediaBatch(c.Request.Context(), pool, &mediaBatch)
-		utils.HydrateMedias(cfg, *media)
+		HydrateMedias(cfg, *media)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "file uploaded successfully", "media": media})
 	}
 }

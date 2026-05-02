@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/models"
@@ -37,5 +38,21 @@ func (s *Store) GetMedia(ctx context.Context, pool *pgxpool.Pool, publicKey stri
 	if err != nil {
 		return nil, err
 	}
+	err = s.r.SetMedia(ctx, *m)
+	if err != nil {
+		log.Println("couldnt set", err)
+	}
 	return m, nil
+}
+
+func (s *Store) SetPresigned(ctx context.Context, publicKey string, url string, exp time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return s.r.SetPresignedUrl(ctx, publicKey, url, exp)
+}
+
+func (s *Store) GetPresigned(ctx context.Context, publicKey string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return s.r.GetPresignedUrl(ctx, publicKey)
 }

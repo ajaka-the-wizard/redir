@@ -6,22 +6,20 @@ import (
 
 	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/models"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func (s *Store) CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, hash string) (*models.Product, error) {
-	return repository.CreatePrivateKey(ctx, pool, productId, hash)
+func (s *Store) CreatePrivateKey(ctx context.Context, productId int, hash string) (*models.Product, error) {
+	return s.repo.CreatePrivateKey(ctx, productId, hash)
 }
 
-func (s *Store) GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*models.Product, error) {
+func (s *Store) GetProductById(ctx context.Context, productId int) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	p, err := s.r.GetProduct(ctx, productId)
 	if err == nil {
 		return p, nil
 	}
-	p, err = repository.GetProductById(ctx, pool, productId)
+	p, err = s.repo.GetProductById(ctx, productId)
 	if err != nil {
 		return nil, err
 	}
@@ -29,6 +27,6 @@ func (s *Store) GetProductById(ctx context.Context, pool *pgxpool.Pool, productI
 	return p, nil
 }
 
-func (s *Store) CreateProduct(ctx context.Context, pool *pgxpool.Pool, data *domain.CreateProductDetails) (*models.Product, error) {
-	return repository.CreateProduct(ctx, pool, data)
+func (s *Store) CreateProduct(ctx context.Context, data *domain.CreateProductDetails) (*models.Product, error) {
+	return s.repo.CreateProduct(ctx, data)
 }

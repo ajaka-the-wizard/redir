@@ -14,14 +14,13 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
 )
 
-func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+func HandleRegister(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		logger.Info("Beginning registration for user")
@@ -40,7 +39,7 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store
 			return
 		}
 		RegisterRequestBody.Password = string(hash)
-		err = store.CreateUser(c.Request.Context(), pool, RegisterRequestBody, cfg)
+		err = store.CreateUser(c.Request.Context(), RegisterRequestBody, cfg)
 		if err != nil {
 			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
 				c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Email is already registered"})
@@ -56,7 +55,7 @@ func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store
 	}
 }
 
-func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+func HandleLogin(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		logger.Info("Starting user login attempt")
@@ -69,7 +68,7 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) g
 			logger.Error("Couldn't get user login details from context")
 			return
 		}
-		user, err := store.GetUserByEmail(c.Request.Context(), pool, cfg, LoginRequestBody.Email)
+		user, err := store.GetUserByEmail(c.Request.Context(), cfg, LoginRequestBody.Email)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid credentials"})
 			logger.Warn("User provided invalid credentials", "error", err.Error())
@@ -149,7 +148,7 @@ func (g *GoogleOauth) HandleRedirectToGoogle(cfg *configs.EnvData) gin.HandlerFu
 	}
 }
 
-func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+func (g *GoogleOauth) HandleGoogleCallback(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := "google"
 		// logger := utils.GetLogger(c)
@@ -198,10 +197,10 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "Email provided is unverified"})
 			return
 		}
-		u, err := store.GetUserByProvider(c.Request.Context(), pool, cfg, provider, user.ID)
+		u, err := store.GetUserByProvider(c.Request.Context(), cfg, provider, user.ID)
 		if err != nil {
 			if err == pgx.ErrNoRows {
-				u, err = store.CreateOrLinkOauth(c.Request.Context(), pool, cfg, user.ID, user.Email, user.Name, provider)
+				u, err = store.CreateOrLinkOauth(c.Request.Context(), cfg, user.ID, user.Email, user.Name, provider)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 					return

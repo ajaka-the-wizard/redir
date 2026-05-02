@@ -12,7 +12,6 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
@@ -35,7 +34,7 @@ func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
 	}
 }
 
-func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+func CheckAndValidateClientKeys(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		pId := c.GetHeader("X-Product")
 		pKey := c.GetHeader("Authorization")
@@ -51,7 +50,7 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData, store 
 			c.Abort()
 			return
 		}
-		product, err := store.GetProductById(c.Request.Context(), pool, pIdI)
+		product, err := store.GetProductById(c.Request.Context(), pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
@@ -75,7 +74,7 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData, store 
 	}
 }
 
-func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+func CanThisUserAlterThisProduct(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := utils.GetUser(c)
 		if !ok || user == nil {
@@ -90,7 +89,7 @@ func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData, store
 			c.Abort()
 			return
 		}
-		product, err := store.GetProductById(c.Request.Context(), pool, pIdI)
+		product, err := store.GetProductById(c.Request.Context(), pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})

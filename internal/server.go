@@ -7,6 +7,7 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/database"
 	"github.com/ajaka-the-wizard/redir/internal/middlewares"
+	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/ajaka-the-wizard/redir/internal/routes"
 	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/gin-gonic/gin"
@@ -15,13 +16,15 @@ import (
 func Listen() error {
 	ctx := context.Background()
 	cfg := configs.LoadEnv()
+	parser := configs.InitializeUserAgentParser()
 	rdb := cache.InitializeRedis(ctx, cfg)
 	defer rdb.Clean()
-	store := store.InitializeStore(rdb)
 	_, presignedClient, tm := configs.PerformAllNecessaryActivationStep(ctx, cfg)
 
 	pool := database.ConnectDB(ctx, cfg.DATABASE_URL)
 	defer pool.Close()
+	repo := repository.InitializeRepository(pool)
+	store := store.InitializeStore(rdb, repo)
 
 	if cfg.PRODUCTION {
 		gin.SetMode(gin.ReleaseMode)
@@ -38,11 +41,11 @@ func Listen() error {
 
 	v1 := router.Group("/api/v1")
 
-	routes.AuthRoutes(v1, pool, cfg, store)
-	routes.UserRoutes(v1, pool, cfg, store)
-	routes.ProductRoutes(v1, pool, cfg, store)
-	routes.ClientRoutes(v1, pool, cfg, tm, store)
-	routes.AssetRoutes(v1, pool, cfg, presignedClient, store)
+	routes.AuthRoutes(v1, cfg, store)
+	routes.UserRoutes(v1, cfg, store)
+	routes.ProductRoutes(v1, cfg, store)
+	routes.ClientRoutes(v1, cfg, tm, store)
+	routes.AssetRoutes(v1, cfg, presignedClient, store, parser)
 
 	return router.Run(cfg.SERVER_ADDRESS)
 }

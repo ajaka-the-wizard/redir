@@ -7,21 +7,19 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/models"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func (s *Store) CreateUser(ctx context.Context, pool *pgxpool.Pool, u *domain.
+func (s *Store) CreateUser(ctx context.Context, u *domain.
 	CreateUserDetails, cfg *configs.EnvData) error {
-	return repository.CreateUser(ctx, pool, u, cfg)
+	return s.repo.CreateUser(ctx, u, cfg)
 }
 
-func (s *Store) CreateOrLinkOauth(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
-	return repository.CreateOrLinkOauth(ctx, pool, cfg, id_or_sub, email, name, provider)
+func (s *Store) CreateOrLinkOauth(ctx context.Context, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
+	return s.repo.CreateOrLinkOauth(ctx, cfg, id_or_sub, email, name, provider)
 }
 
-func (s *Store) GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, email string) (*models.User, error) {
+func (s *Store) GetUserByEmail(ctx context.Context, cfg *configs.EnvData, email string) (*models.User, error) {
 	const by string = "email"
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -29,7 +27,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *con
 	if err == nil {
 		return u, nil
 	}
-	u, err = repository.GetUserByEmail(ctx, pool, cfg, email)
+	u, err = s.repo.GetUserByEmail(ctx, cfg, email)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +35,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *con
 	return u, nil
 }
 
-func (s *Store) GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
+func (s *Store) GetUserById(ctx context.Context, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
 	const by string = "id"
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -45,7 +43,7 @@ func (s *Store) GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *config
 	if err == nil {
 		return u, nil
 	}
-	u, err = repository.GetUserById(ctx, pool, cfg, id)
+	u, err = s.repo.GetUserById(ctx, cfg, id)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +51,6 @@ func (s *Store) GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *config
 	return u, nil
 }
 
-func (s *Store) GetUserByProvider(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
-	return repository.GetUserByProvider(ctx, pool, cfg, provider, sub)
+func (s *Store) GetUserByProvider(ctx context.Context, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
+	return s.repo.GetUserByProvider(ctx, cfg, provider, sub)
 }

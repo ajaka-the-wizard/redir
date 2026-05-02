@@ -8,10 +8,9 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateMedia(ctx context.Context, pool *pgxpool.Pool, user_id uuid.UUID, innerKey string, publicKey string) (*models.Media, error) {
+func (r *Repository) CreateMedia(ctx context.Context, user_id uuid.UUID, innerKey string, publicKey string) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -19,7 +18,7 @@ func CreateMedia(ctx context.Context, pool *pgxpool.Pool, user_id uuid.UUID, inn
 	VALUES ($1, $2, $3)
 	RETURNING public_key, inner_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at, batch_id,seq_id,public,mime_type,hits,
 	`
-	rows, err := pool.Query(ctx, query, publicKey, innerKey, user_id)
+	rows, err := r.pool.Query(ctx, query, publicKey, innerKey, user_id)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +29,7 @@ func CreateMedia(ctx context.Context, pool *pgxpool.Pool, user_id uuid.UUID, inn
 	return &media, nil
 }
 
-func CreateMediaBatch(ctx context.Context, pool *pgxpool.Pool, mediaBatch *[]models.Media) *[]models.Media {
+func (r *Repository) CreateMediaBatch(ctx context.Context, mediaBatch *[]models.Media) *[]models.Media {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var allSavedMedia []models.Media
@@ -45,7 +44,7 @@ func CreateMediaBatch(ctx context.Context, pool *pgxpool.Pool, mediaBatch *[]mod
 				`, f.PublicKey, f.InnerKey, f.UserId, f.FileName, f.MimeType, f.BatchId, f.SeqId, f.Public,
 		)
 	}
-	results := pool.SendBatch(ctx, &batch)
+	results := r.pool.SendBatch(ctx, &batch)
 	defer results.Close()
 
 	for range *mediaBatch {
@@ -65,7 +64,7 @@ func CreateMediaBatch(ctx context.Context, pool *pgxpool.Pool, mediaBatch *[]mod
 	return &allSavedMedia
 }
 
-func HandleBatchCommits(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) error {
+func (r *Repository) HandleBatchCommits(ctx context.Context, batchId uuid.UUID) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -74,7 +73,7 @@ func HandleBatchCommits(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UU
 	SET status = 'completed'
 	WHERE batch_id = $1
 	`
-	tag, err := pool.Exec(ctx, query, batchId)
+	tag, err := r.pool.Exec(ctx, query, batchId)
 	if err != nil {
 		return err
 	}
@@ -84,7 +83,7 @@ func HandleBatchCommits(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UU
 	return nil
 }
 
-func RetriveBatch(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) (*[]models.Media, error) {
+func (r *Repository) RetriveBatch(ctx context.Context, batchId uuid.UUID) (*[]models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -93,7 +92,7 @@ func RetriveBatch(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) (*
 	FROM medias
 	WHERE batch_id = $1 and status = 'pending'
 	`
-	rows, err := pool.Query(ctx, query, batchId)
+	rows, err := r.pool.Query(ctx, query, batchId)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +103,7 @@ func RetriveBatch(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) (*
 	return &medias, nil
 }
 
-func GetMedia(ctx context.Context, pool *pgxpool.Pool, publicKey string) (*models.Media, error) {
+func (r *Repository) GetMedia(ctx context.Context, publicKey string) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -113,7 +112,7 @@ func GetMedia(ctx context.Context, pool *pgxpool.Pool, publicKey string) (*model
 	FROM medias
 	WHERE public_key = $1
 	`
-	rows, err := pool.Query(ctx, query, publicKey)
+	rows, err := r.pool.Query(ctx, query, publicKey)
 	if err != nil {
 		return nil, err
 	}

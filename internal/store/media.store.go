@@ -6,35 +6,33 @@ import (
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/models"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func (s *Store) CreateMedia(ctx context.Context, pool *pgxpool.Pool, user_id uuid.UUID, innerKey string, publicKey string) (*models.Media, error) {
-	return repository.CreateMedia(ctx, pool, user_id, innerKey, publicKey)
+func (s *Store) CreateMedia(ctx context.Context, user_id uuid.UUID, innerKey string, publicKey string) (*models.Media, error) {
+	return s.repo.CreateMedia(ctx, user_id, innerKey, publicKey)
 }
 
-func (s *Store) CreateMediaBatch(ctx context.Context, pool *pgxpool.Pool, mediaBatch *[]models.Media) *[]models.Media {
-	return repository.CreateMediaBatch(ctx, pool, mediaBatch)
+func (s *Store) CreateMediaBatch(ctx context.Context, mediaBatch *[]models.Media) *[]models.Media {
+	return s.repo.CreateMediaBatch(ctx, mediaBatch)
 }
 
-func (s *Store) HandleBatchCommits(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) error {
-	return repository.HandleBatchCommits(ctx, pool, batchId)
+func (s *Store) HandleBatchCommits(ctx context.Context, batchId uuid.UUID) error {
+	return s.repo.HandleBatchCommits(ctx, batchId)
 }
 
-func (s *Store) RetriveBatch(ctx context.Context, pool *pgxpool.Pool, batchId uuid.UUID) (*[]models.Media, error) {
-	return repository.RetriveBatch(ctx, pool, batchId)
+func (s *Store) RetriveBatch(ctx context.Context, batchId uuid.UUID) (*[]models.Media, error) {
+	return s.repo.RetriveBatch(ctx, batchId)
 }
 
-func (s *Store) GetMedia(ctx context.Context, pool *pgxpool.Pool, publicKey string) (*models.Media, error) {
+func (s *Store) GetMedia(ctx context.Context, publicKey string) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	m, err := s.r.GetMedia(ctx, publicKey)
 	if err == nil {
 		return m, nil
 	}
-	m, err = repository.GetMedia(ctx, pool, publicKey)
+	m, err = s.repo.GetMedia(ctx, publicKey)
 	if err != nil {
 		return nil, err
 	}

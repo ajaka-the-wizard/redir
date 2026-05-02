@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func HandleClientPing() gin.HandlerFunc {
@@ -31,7 +30,7 @@ func HandleClientPing() gin.HandlerFunc {
 	}
 }
 
-func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.Client, store *store.Store) gin.HandlerFunc {
+func HandleUpload(cfg *configs.EnvData, tm *transfermanager.Client, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var mediaBatch []models.Media
 		valid := false
@@ -51,7 +50,7 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Error getting multipart reader"})
 			return
 		}
-		medias, err := store.RetriveBatch(c.Request.Context(), pool, batchIdUUID)
+		medias, err := store.RetriveBatch(c.Request.Context(), batchIdUUID)
 		if err != nil && err != pgx.ErrNoRows {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
@@ -120,13 +119,13 @@ func HandleUpload(cfg *configs.EnvData, pool *pgxpool.Pool, tm *transfermanager.
 			return
 		}
 		log.Println("batch", len(mediaBatch))
-		media := store.CreateMediaBatch(c.Request.Context(), pool, &mediaBatch)
+		media := store.CreateMediaBatch(c.Request.Context(), &mediaBatch)
 		HydrateMedias(cfg, *media)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "file uploaded successfully", "media": media})
 	}
 }
 
-func HandleBatchCommit(pool *pgxpool.Pool, store *store.Store) gin.HandlerFunc {
+func HandleBatchCommit(store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		batchId := c.Param("batchId")
 		batchIdUUID, err := utils.ValidateAndReturnUUID(batchId)
@@ -134,7 +133,7 @@ func HandleBatchCommit(pool *pgxpool.Pool, store *store.Store) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid id given"})
 			return
 		}
-		err = store.HandleBatchCommits(c.Request.Context(), pool, batchIdUUID)
+		err = store.HandleBatchCommits(c.Request.Context(), batchIdUUID)
 
 		if err != nil {
 			if err == pgx.ErrNoRows {

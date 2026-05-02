@@ -7,10 +7,9 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, hash string) (*models.Product, error) {
+func (r *Repository) CreatePrivateKey(ctx context.Context, productId int, hash string) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -19,7 +18,7 @@ func CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, ha
 	WHERE product_id = $1
 	RETURNING id, product_id, product_name,user_id, created_at, updated_at, public, private_key
 	`
-	rows, err := pool.Query(ctx, query, productId, hash)
+	rows, err := r.pool.Query(ctx, query, productId, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +29,7 @@ func CreatePrivateKey(ctx context.Context, pool *pgxpool.Pool, productId int, ha
 	return &product, nil
 }
 
-func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*models.Product, error) {
+func (r *Repository) GetProductById(ctx context.Context, productId int) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -38,7 +37,7 @@ func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*mo
 	FROM products
 	WHERE product_id = $1
 	`
-	rows, err := pool.Query(ctx, query, productId)
+	rows, err := r.pool.Query(ctx, query, productId)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,7 @@ func GetProductById(ctx context.Context, pool *pgxpool.Pool, productId int) (*mo
 	return &product, nil
 }
 
-func CreateProduct(ctx context.Context, pool *pgxpool.Pool, data *domain.CreateProductDetails) (*models.Product, error) {
+func (r *Repository) CreateProduct(ctx context.Context, data *domain.CreateProductDetails) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -60,7 +59,7 @@ func CreateProduct(ctx context.Context, pool *pgxpool.Pool, data *domain.CreateP
 	VALUES($1, $2, $3)
 	RETURNING id,product_id,product_name,user_id,created_at,updated_at
 	`
-	rows, err := pool.Query(ctx, query, data.ProductName, data.UserId, data.Public)
+	rows, err := r.pool.Query(ctx, query, data.ProductName, data.UserId, data.Public)
 	if err != nil {
 		return nil, err
 	}

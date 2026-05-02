@@ -9,10 +9,9 @@ import (
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateUser(ctx context.Context, pool *pgxpool.Pool, user *domain.
+func (r *Repository) CreateUser(ctx context.Context, user *domain.
 	CreateUserDetails, cfg *configs.EnvData) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -20,14 +19,14 @@ func CreateUser(ctx context.Context, pool *pgxpool.Pool, user *domain.
 	INSERT INTO users (full_name,email,password)
 	VALUES ($1, $2, $3)
 	`
-	_, err := pool.Exec(ctx, query, user.FullName, user.Email, user.Password)
+	_, err := r.pool.Exec(ctx, query, user.FullName, user.Email, user.Password)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func CreateOrLinkOauth(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
+func (r *Repository) CreateOrLinkOauth(ctx context.Context, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -39,7 +38,7 @@ func CreateOrLinkOauth(ctx context.Context, pool *pgxpool.Pool, cfg *configs.Env
 	provider = EXCLUDED.provider
 	RETURNING id, email, admin, paid
 	`
-	rows, err := pool.Query(ctx, query, id_or_sub, email, name, provider)
+	rows, err := r.pool.Query(ctx, query, id_or_sub, email, name, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +49,7 @@ func CreateOrLinkOauth(ctx context.Context, pool *pgxpool.Pool, cfg *configs.Env
 	return &user, nil
 }
 
-func GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, email string) (*models.User, error) {
+func (r *Repository) GetUserByEmail(ctx context.Context, cfg *configs.EnvData, email string) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -58,7 +57,7 @@ func GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvDat
 	FROM users
 	WHERE email = $1
 	`
-	rows, err := pool.Query(ctx, query, email)
+	rows, err := r.pool.Query(ctx, query, email)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +70,7 @@ func GetUserByEmail(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvDat
 	return &user, nil
 }
 
-func GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
+func (r *Repository) GetUserById(ctx context.Context, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -79,7 +78,7 @@ func GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, 
 	FROM users
 	WHERE id = $1
 	`
-	rows, err := pool.Query(ctx, query, id)
+	rows, err := r.pool.Query(ctx, query, id)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +92,7 @@ func GetUserById(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, 
 	return &user, nil
 }
 
-func GetUserByProvider(ctx context.Context, pool *pgxpool.Pool, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
+func (r *Repository) GetUserByProvider(ctx context.Context, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -101,7 +100,7 @@ func GetUserByProvider(ctx context.Context, pool *pgxpool.Pool, cfg *configs.Env
 	FROM users
 	WHERE provider = $1 AND provider_sub = $2
 	`
-	rows, err := pool.Query(ctx, query, provider, sub)
+	rows, err := r.pool.Query(ctx, query, provider, sub)
 	if err != nil {
 		return nil, err
 	}

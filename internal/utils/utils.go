@@ -56,12 +56,10 @@ func GetUser(c *gin.Context) (*domain.
 func GetMedia(c *gin.Context) (*models.Media, bool) {
 	val, ok := c.Get("media")
 	if !ok {
-		log.Println("from exists")
 		return nil, false
 	}
 	media, ok := val.(*models.Media)
 	if !ok {
-		log.Println("from cast", val)
 		return nil, false
 	}
 	return media, true
@@ -127,10 +125,11 @@ func GetLogger(c *gin.Context) *slog.Logger {
 	return slog.Default()
 }
 
-func PerformLoginActivity(ctx context.Context, store *store.Store, cfg *configs.EnvData, user *domain.LightUser) (*http.Cookie, error) {
+func PerformLoginActivity(ctx context.Context, store *store.Store, cfg *configs.EnvData, logger *slog.Logger, user *domain.LightUser) (*http.Cookie, error) {
 	id := GenCleanedUpUUid()
-	exp, err := store.SetUserOnline(ctx, id, user)
+	exp, err := store.SetUserOnline(ctx, logger, id, user)
 	if err != nil {
+		logger.Error("failed to set user online", "user_id", user.Id.String(), "error", err.Error())
 		return nil, err
 	}
 	sessionIdCookie := SetAndGetCookieDetails("sessionId", id, cfg.PRODUCTION, exp)

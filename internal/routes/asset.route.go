@@ -13,5 +13,5 @@ import (
 func AssetRoutes(rg *gin.RouterGroup, cfg *configs.EnvData, presignedClient *s3.PresignClient, store *store.Store, parser *uaparser.Parser) {
 	asset := rg.Group("/assets")
 
-	asset.GET("/:assetId", middlewares.CheckIfAssetIsPublic(cfg, store), handlers.HandleRedirect(cfg, presignedClient, store, parser))
+	asset.GET("/:assetId", middlewares.ValidatePublicKey(), middlewares.CheckIfAssetIsPublic(cfg, store), handlers.HandleRedirect(cfg, presignedClient, store, parser))
 }

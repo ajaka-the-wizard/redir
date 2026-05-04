@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/models"
@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreateMedia(ctx context.Context, user_id uuid.UUID, innerKey string, publicKey string) (*models.Media, error) {
+func (r *Repository) CreateMedia(ctx context.Context, logger *slog.Logger, user_id uuid.UUID, innerKey string, publicKey string) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -20,6 +20,7 @@ func (r *Repository) CreateMedia(ctx context.Context, user_id uuid.UUID, innerKe
 	`
 	rows, err := r.pool.Query(ctx, query, publicKey, innerKey, user_id)
 	if err != nil {
+		logger.Error("failed to create media", "public_key", publicKey, "error", err.Error())
 		return nil, err
 	}
 	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
@@ -29,7 +30,7 @@ func (r *Repository) CreateMedia(ctx context.Context, user_id uuid.UUID, innerKe
 	return &media, nil
 }
 
-func (r *Repository) CreateMediaBatch(ctx context.Context, mediaBatch *[]models.Media) *[]models.Media {
+func (r *Repository) CreateMediaBatch(ctx context.Context, logger *slog.Logger, mediaBatch *[]models.Media) *[]models.Media {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var allSavedMedia []models.Media
@@ -51,12 +52,12 @@ func (r *Repository) CreateMediaBatch(ctx context.Context, mediaBatch *[]models.
 		rows, err := results.Query()
 
 		if err != nil {
-			log.Println("error with query", err)
+			logger.Error("error querying media batch", "error", err.Error())
 			continue
 		}
 		m, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
 		if err != nil {
-			log.Println("error with collect", err)
+			logger.Error("error collecting media row from batch", "error", err.Error())
 			continue
 		}
 		allSavedMedia = append(allSavedMedia, m)
@@ -64,7 +65,7 @@ func (r *Repository) CreateMediaBatch(ctx context.Context, mediaBatch *[]models.
 	return &allSavedMedia
 }
 
-func (r *Repository) HandleBatchCommits(ctx context.Context, batchId uuid.UUID) error {
+func (r *Repository) HandleBatchCommits(ctx context.Context, logger *slog.Logger, batchId uuid.UUID) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -75,6 +76,7 @@ func (r *Repository) HandleBatchCommits(ctx context.Context, batchId uuid.UUID) 
 	`
 	tag, err := r.pool.Exec(ctx, query, batchId)
 	if err != nil {
+		logger.Error("failed to commit batch", "batch_id", batchId.String(), "error", err.Error())
 		return err
 	}
 	if tag.RowsAffected() == 0 {
@@ -83,7 +85,7 @@ func (r *Repository) HandleBatchCommits(ctx context.Context, batchId uuid.UUID) 
 	return nil
 }
 
-func (r *Repository) RetriveBatch(ctx context.Context, batchId uuid.UUID) (*[]models.Media, error) {
+func (r *Repository) RetriveBatch(ctx context.Context, logger *slog.Logger, batchId uuid.UUID) (*[]models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -94,6 +96,7 @@ func (r *Repository) RetriveBatch(ctx context.Context, batchId uuid.UUID) (*[]mo
 	`
 	rows, err := r.pool.Query(ctx, query, batchId)
 	if err != nil {
+		logger.Error("failed to retrieve batch", "batch_id", batchId.String(), "error", err.Error())
 		return nil, err
 	}
 	medias, err := pgx.CollectRows(rows, pgx.RowToStructByName[models.Media])
@@ -103,7 +106,7 @@ func (r *Repository) RetriveBatch(ctx context.Context, batchId uuid.UUID) (*[]mo
 	return &medias, nil
 }
 
-func (r *Repository) GetMedia(ctx context.Context, publicKey string) (*models.Media, error) {
+func (r *Repository) GetMedia(ctx context.Context, logger *slog.Logger, publicKey string) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -113,6 +116,28 @@ func (r *Repository) GetMedia(ctx context.Context, publicKey string) (*models.Me
 	WHERE public_key = $1
 	`
 	rows, err := r.pool.Query(ctx, query, publicKey)
+	if err != nil {
+		logger.Error("failed to get media", "public_key", publicKey, "error", err.Error())
+		return nil, err
+	}
+	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
+	if err != nil {
+		return nil, err
+	}
+	return &media, nil
+}
+
+func (r *Repository) ToggleAssetVisibility(ctx context.Context, publicKey string, public bool) (*models.Media, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	query := `
+	UPDATE medias
+	SET public = $1
+	WHERE public_key = $2
+	RETURNING public_key, inner_key, user_id, file_size, status, file_type, active, file_name, created_at, updated_at, batch_id,seq_id, public, mime_type, hits
+	`
+	rows, err := r.pool.Query(ctx, query, public, publicKey)
 	if err != nil {
 		return nil, err
 	}

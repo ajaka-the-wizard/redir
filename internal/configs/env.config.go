@@ -1,7 +1,7 @@
 package configs
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -32,10 +32,11 @@ type EnvData struct {
 	REDIS_PASSWORD                    string
 }
 
-func LoadEnv() *EnvData {
+func LoadEnv(logger *slog.Logger) *EnvData {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Env file not found")
+		logger.Error("environment file not found", "error", err.Error())
+		panic("Env file not found")
 	}
 
 	config := EnvData{
@@ -62,6 +63,10 @@ func LoadEnv() *EnvData {
 		REDIS_PASSWORD:                    os.Getenv("REDIS_PASSWORD"),
 	}
 	config.PRODUCTION = config.ENVIRONMENT == "production"
-	log.Println("Enviroments variables loaded")
+	logger.Info("environment variables loaded", "environment", config.ENVIRONMENT)
 	return &config
 }
+
+
+
+// My limit expiredthelast time, i've added more features and changed some things. for example, i saw that youre initializing a default logger everytime for the inits functions. i initialized one and passed it to the startup functions. if you need it, accept it and use it. continue from 

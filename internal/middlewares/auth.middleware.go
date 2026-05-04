@@ -16,13 +16,14 @@ import (
 
 func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		sessionId, err := c.Cookie("sessionId")
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": http.StatusText(http.StatusUnauthorized)})
 			c.Abort()
 			return
 		}
-		user, ok := store.GetUser(c.Request.Context(), sessionId)
+		user, ok := store.GetUser(c.Request.Context(), logger, sessionId)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid or expired sessionId"})
 			c.Abort()
@@ -36,6 +37,7 @@ func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
 
 func CheckAndValidateClientKeys(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		pId := c.GetHeader("X-Product")
 		pKey := c.GetHeader("Authorization")
 		k, ok := strings.CutPrefix(pKey, "Bearer ")
@@ -50,7 +52,7 @@ func CheckAndValidateClientKeys(cfg *configs.EnvData, store *store.Store) gin.Ha
 			c.Abort()
 			return
 		}
-		product, err := store.GetProductById(c.Request.Context(), pIdI)
+		product, err := store.GetProductById(c.Request.Context(), logger, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
@@ -77,6 +79,7 @@ func CheckAndValidateClientKeys(cfg *configs.EnvData, store *store.Store) gin.Ha
 func CanThisUserAlterThisProduct(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := utils.GetUser(c)
+		logger := utils.GetLogger(c)
 		if !ok || user == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": http.StatusText(http.StatusUnauthorized)})
 			c.Abort()
@@ -89,7 +92,7 @@ func CanThisUserAlterThisProduct(cfg *configs.EnvData, store *store.Store) gin.H
 			c.Abort()
 			return
 		}
-		product, err := store.GetProductById(c.Request.Context(), pIdI)
+		product, err := store.GetProductById(c.Request.Context(), logger, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})

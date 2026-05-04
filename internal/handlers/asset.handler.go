@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -12,14 +11,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/ua-parser/uap-go/uaparser"
 )
 
 func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient, store *store.Store, parser *uaparser.Parser) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		media, ok := utils.GetMedia(c)
 		ua := c.GetHeader("user-agent")
-		log.Println("parsing", ua)
 		client := parser.Parse(ua)
 		metric := models.Metrics{
 			MediaId:        media.PublicKey,
@@ -32,30 +32,55 @@ func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient, sto
 			OsVersion:      client.Os.Major,
 			Ip:             c.ClientIP(),
 		}
-		log.Println("metrics:", metric)
 		if !ok {
-			log.Println("From ok")
+			logger.Error("media not found in context")
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
-		preSignedUrl, err := store.GetPresigned(c.Request.Context(), media.PublicKey)
+		preSignedUrl, err := store.GetPresigned(c.Request.Context(), logger, media.PublicKey)
 		if err != nil {
 			preSigned, err := presignedClient.PresignGetObject(c.Request.Context(), &s3.GetObjectInput{
 				Bucket: aws.String(cfg.BUCKET_NAME),
 				Key:    aws.String(media.InnerKey),
 			}, s3.WithPresignExpires(30*time.Minute))
 			if err != nil {
-				log.Println("from presigned", err)
+				logger.Error("failed to generate presigned url", "public_key", media.PublicKey, "error", err.Error())
 				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 				return
 			}
-			store.SetPresigned(c.Request.Context(), media.PublicKey, preSigned.URL, 28*time.Minute)
+			store.SetPresigned(c.Request.Context(), logger, media.PublicKey, preSigned.URL, 28*time.Minute)
 			preSignedUrl = preSigned.URL
 		}
-		err = store.SaveMetrics(c.Request.Context(), &metric)
+		err = store.SaveMetrics(c.Request.Context(), logger, &metric)
 		if err != nil {
-			log.Println("Error saving metric:", err)
+			logger.Error("failed to save access metrics", "media_id", media.PublicKey, "error", err.Error())
 		}
 		c.Redirect(http.StatusFound, preSignedUrl)
+	}
+}
+
+type toggleAsset struct {
+	Public bool `json:"public"`
+}
+
+func ToggleAssetVisibility(store *store.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req toggleAsset
+		publicKey := c.Param("assetId")
+		err := c.ShouldBindJSON(&req)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": http.StatusText(http.StatusBadRequest)})
+			return
+		}
+		m, err := store.ToggleAsset(c.Request.Context(), publicKey, req.Public)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Invalid publicKey"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "success", "media": m})
 	}
 }

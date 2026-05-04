@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
@@ -11,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreateUser(ctx context.Context, user *domain.
+func (r *Repository) CreateUser(ctx context.Context, logger *slog.Logger, user *domain.
 	CreateUserDetails, cfg *configs.EnvData) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -21,12 +22,14 @@ func (r *Repository) CreateUser(ctx context.Context, user *domain.
 	`
 	_, err := r.pool.Exec(ctx, query, user.FullName, user.Email, user.Password)
 	if err != nil {
+		logger.Error("failed to create user", "email", user.Email, "error", err.Error())
 		return err
 	}
+	logger.Info("user created successfully", "email", user.Email)
 	return nil
 }
 
-func (r *Repository) CreateOrLinkOauth(ctx context.Context, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
+func (r *Repository) CreateOrLinkOauth(ctx context.Context, logger *slog.Logger, cfg *configs.EnvData, id_or_sub string, email string, name string, provider string) (*domain.LightUser, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -40,16 +43,18 @@ func (r *Repository) CreateOrLinkOauth(ctx context.Context, cfg *configs.EnvData
 	`
 	rows, err := r.pool.Query(ctx, query, id_or_sub, email, name, provider)
 	if err != nil {
+		logger.Error("failed to create or link oauth user", "provider", provider, "email", email, "error", err.Error())
 		return nil, err
 	}
 	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[domain.LightUser])
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("oauth user created or linked", "provider", provider, "email", email)
 	return &user, nil
 }
 
-func (r *Repository) GetUserByEmail(ctx context.Context, cfg *configs.EnvData, email string) (*models.User, error) {
+func (r *Repository) GetUserByEmail(ctx context.Context, logger *slog.Logger, cfg *configs.EnvData, email string) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -59,6 +64,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, cfg *configs.EnvData, e
 	`
 	rows, err := r.pool.Query(ctx, query, email)
 	if err != nil {
+		logger.Error("failed to get user by email", "email", email, "error", err.Error())
 		return nil, err
 	}
 	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.User])
@@ -70,7 +76,7 @@ func (r *Repository) GetUserByEmail(ctx context.Context, cfg *configs.EnvData, e
 	return &user, nil
 }
 
-func (r *Repository) GetUserById(ctx context.Context, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
+func (r *Repository) GetUserById(ctx context.Context, logger *slog.Logger, cfg *configs.EnvData, id uuid.UUID) (*models.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -80,6 +86,7 @@ func (r *Repository) GetUserById(ctx context.Context, cfg *configs.EnvData, id u
 	`
 	rows, err := r.pool.Query(ctx, query, id)
 	if err != nil {
+		logger.Error("failed to get user by id", "user_id", id.String(), "error", err.Error())
 		return nil, err
 	}
 
@@ -92,7 +99,7 @@ func (r *Repository) GetUserById(ctx context.Context, cfg *configs.EnvData, id u
 	return &user, nil
 }
 
-func (r *Repository) GetUserByProvider(ctx context.Context, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
+func (r *Repository) GetUserByProvider(ctx context.Context, logger *slog.Logger, cfg *configs.EnvData, provider string, sub string) (*domain.LightUser, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -102,6 +109,7 @@ func (r *Repository) GetUserByProvider(ctx context.Context, cfg *configs.EnvData
 	`
 	rows, err := r.pool.Query(ctx, query, provider, sub)
 	if err != nil {
+		logger.Error("failed to get user by provider", "provider", provider, "error", err.Error())
 		return nil, err
 	}
 	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[domain.LightUser])

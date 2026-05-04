@@ -14,4 +14,6 @@ func ProductRoutes(rg *gin.RouterGroup, cfg *configs.EnvData, store *store.Store
 	product.Use(middlewares.AuthMiddleware(store, cfg))
 	product.POST("", middlewares.ProductValidationMiddleware, handlers.CreateProduct(cfg, store))
 	product.POST("/:id", middlewares.CanThisUserAlterThisProduct(cfg, store), handlers.GenerateKey(cfg, store))
+	product.PUT("/:id", middlewares.CanThisUserAlterThisProduct(cfg, store), handlers.ToggleProductVisibility(cfg, store))
+	product.PUT("/:id/assets/:assetId", middlewares.ValidatePublicKey(), middlewares.CanThisUserAlterThisProduct(cfg, store), handlers.ToggleAssetVisibility(store))
 }

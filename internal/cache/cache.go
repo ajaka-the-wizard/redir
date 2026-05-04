@@ -2,7 +2,7 @@ package cache
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
@@ -15,7 +15,7 @@ type Sredis struct {
 	rdb *redis.Client
 }
 
-func InitializeRedis(ctx context.Context, cfg *configs.EnvData) *Sredis {
+func InitializeRedis(ctx context.Context, cfg *configs.EnvData, logger *slog.Logger) *Sredis {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	rdb := redis.NewClient(&redis.Options{
@@ -28,7 +28,7 @@ func InitializeRedis(ctx context.Context, cfg *configs.EnvData) *Sredis {
 	if err != nil {
 		panic(err)
 	}
-	log.Println("Redis connected successfully")
+	logger.Info("Redis cache connected successfully")
 	return &Sredis{
 		rdb,
 	}

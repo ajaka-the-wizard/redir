@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func CheckIfAssetIsPublic(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+func ValidatePublicKey() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		publicKey := c.Param("assetId")
 		if publicKey == "" {
@@ -26,7 +26,15 @@ func CheckIfAssetIsPublic(cfg *configs.EnvData, store *store.Store) gin.HandlerF
 			c.Abort()
 			return
 		}
-		media, err := store.GetMedia(c.Request.Context(), publicKey)
+		c.Next()
+	}
+}
+
+func CheckIfAssetIsPublic(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
+		publicKey := c.Param("assetId")
+		media, err := store.GetMedia(c.Request.Context(), logger, publicKey)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": http.StatusText(http.StatusNotFound)})

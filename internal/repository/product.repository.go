@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/domain"
@@ -9,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *Repository) CreatePrivateKey(ctx context.Context, productId int, hash string) (*models.Product, error) {
+func (r *Repository) CreatePrivateKey(ctx context.Context, logger *slog.Logger, productId int, hash string) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -20,16 +21,18 @@ func (r *Repository) CreatePrivateKey(ctx context.Context, productId int, hash s
 	`
 	rows, err := r.pool.Query(ctx, query, productId, hash)
 	if err != nil {
+		logger.Error("failed to create private key", "product_id", productId, "error", err.Error())
 		return nil, err
 	}
 	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Product])
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("private key created", "product_id", productId)
 	return &product, nil
 }
 
-func (r *Repository) GetProductById(ctx context.Context, productId int) (*models.Product, error) {
+func (r *Repository) GetProductById(ctx context.Context, logger *slog.Logger, productId int) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	query := `
@@ -39,6 +42,7 @@ func (r *Repository) GetProductById(ctx context.Context, productId int) (*models
 	`
 	rows, err := r.pool.Query(ctx, query, productId)
 	if err != nil {
+		logger.Error("failed to get product by id", "product_id", productId, "error", err.Error())
 		return nil, err
 	}
 
@@ -50,7 +54,7 @@ func (r *Repository) GetProductById(ctx context.Context, productId int) (*models
 	return &product, nil
 }
 
-func (r *Repository) CreateProduct(ctx context.Context, data *domain.CreateProductDetails) (*models.Product, error) {
+func (r *Repository) CreateProduct(ctx context.Context, logger *slog.Logger, data *domain.CreateProductDetails) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -61,6 +65,29 @@ func (r *Repository) CreateProduct(ctx context.Context, data *domain.CreateProdu
 	`
 	rows, err := r.pool.Query(ctx, query, data.ProductName, data.UserId, data.Public)
 	if err != nil {
+		logger.Error("failed to create product", "product_name", data.ProductName, "error", err.Error())
+		return nil, err
+	}
+	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("product created", "product_name", data.ProductName)
+	return &product, nil
+}
+
+func (r *Repository) ToggleProductVisibility(ctx context.Context, productId int, public bool) (*models.Product, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	query := `
+	UPDATE products
+	SET public = $1,updated_at = CURRENT_TIMESTAMP
+	WHERE product_id = $2
+	RETURNING id, product_id, product_name,user_id, created_at, updated_at, public
+	`
+	rows, err := r.pool.Query(ctx, query, public, productId)
+	if err != nil {
 		return nil, err
 	}
 	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
@@ -68,4 +95,5 @@ func (r *Repository) CreateProduct(ctx context.Context, data *domain.CreateProdu
 		return nil, err
 	}
 	return &product, nil
+
 }

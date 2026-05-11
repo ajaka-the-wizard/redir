@@ -32,6 +32,6 @@ func (s *Store) CreateProduct(ctx context.Context, logger *slog.Logger, data *do
 	return s.repo.CreateProduct(ctx, logger, data)
 }
 
-func (s *Store) ToggleProductVisibility(ctx context.Context, public bool, productId int) (*models.Product, error) {
-	return s.repo.ToggleProductVisibility(ctx, productId, public)
+func (s *Store) ToggleProductVisibility(ctx context.Context, logger *slog.Logger, public bool, productId int) (*models.Product, error) {
+	return s.repo.ToggleProductVisibility(ctx, logger, productId, public)
 }

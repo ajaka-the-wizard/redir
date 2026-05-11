@@ -66,7 +66,3 @@ func LoadEnv(logger *slog.Logger) *EnvData {
 	logger.Info("environment variables loaded", "environment", config.ENVIRONMENT)
 	return &config
 }
-
-
-
-// My limit expiredthelast time, i've added more features and changed some things. for example, i saw that youre initializing a default logger everytime for the inits functions. i initialized one and passed it to the startup functions. if you need it, accept it and use it. continue from 

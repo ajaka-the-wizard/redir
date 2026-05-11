@@ -56,6 +56,6 @@ func (s *Store) GetPresigned(ctx context.Context, logger *slog.Logger, publicKey
 	return s.r.GetPresignedUrl(ctx, publicKey)
 }
 
-func (s *Store) ToggleAsset(ctx context.Context, publicKey string, public bool) (*models.Media, error) {
-	return s.repo.ToggleAssetVisibility(ctx, publicKey, public)
+func (s *Store) ToggleAsset(ctx context.Context, logger *slog.Logger, publicKey string, public bool) (*models.Media, error) {
+	return s.repo.ToggleAssetVisibility(ctx, logger, publicKey, public)
 }

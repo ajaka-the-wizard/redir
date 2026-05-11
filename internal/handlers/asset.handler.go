@@ -65,22 +65,27 @@ type toggleAsset struct {
 
 func ToggleAssetVisibility(store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		var req toggleAsset
 		publicKey := c.Param("assetId")
 		err := c.ShouldBindJSON(&req)
 		if err != nil {
+			logger.Error("failed to parse asset visibility toggle request", "error", err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": http.StatusText(http.StatusBadRequest)})
 			return
 		}
-		m, err := store.ToggleAsset(c.Request.Context(), publicKey, req.Public)
+		m, err := store.ToggleAsset(c.Request.Context(), logger, publicKey, req.Public)
 		if err != nil {
 			if err == pgx.ErrNoRows {
+				logger.Warn("asset not found during visibility toggle", "public_key", publicKey)
 				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Invalid publicKey"})
 				return
 			}
+			logger.Error("failed to toggle asset visibility", "public_key", publicKey, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
+		logger.Info("asset visibility toggled", "public_key", m.PublicKey, "public", m.Public)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "success", "media": m})
 	}
 }

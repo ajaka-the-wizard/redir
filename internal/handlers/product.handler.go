@@ -68,30 +68,37 @@ type toggleProduct struct {
 
 func ToggleProductVisibility(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		var req toggleProduct
 		p, ok := utils.GetProduct(c)
 		if !ok {
+			logger.Error("product not found in context for visibility toggle")
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
 		err := c.ShouldBindJSON(&req)
 		if err != nil {
+			logger.Error("failed to parse product visibility toggle request", "error", err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": http.StatusText(http.StatusBadRequest)})
 			return
 		}
 		if p.Public == req.Public {
+			logger.Info("product visibility toggle request has no state change", "product_id", p.ProductId, "public", req.Public)
 			c.JSON(http.StatusBadRequest, gin.H{"success": false})
 			return
 		}
-		product, err := store.ToggleProductVisibility(c.Request.Context(), req.Public, p.ProductId)
+		product, err := store.ToggleProductVisibility(c.Request.Context(), logger, req.Public, p.ProductId)
 		if err != nil {
 			if err == pgx.ErrNoRows {
+				logger.Warn("product not found during visibility toggle", "product_id", p.ProductId)
 				c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Invalid productId"})
 				return
 			}
+			logger.Error("failed to toggle product visibility", "product_id", p.ProductId, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
+		logger.Info("product visibility toggled", "product_id", product.ProductId, "public", product.Public)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "success", "product": product})
 	}
 }

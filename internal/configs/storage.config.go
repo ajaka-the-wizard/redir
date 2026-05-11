@@ -3,7 +3,8 @@ package configs
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,7 +30,7 @@ func initWhatEverBucket(ctx context.Context, cfg *EnvData) (*s3.Client, error) {
 	return client, err
 }
 
-func ensureBucketExists(ctx context.Context, client *s3.Client, bucket string) {
+func ensureBucketExists(ctx context.Context, client *s3.Client, bucket string, logger *slog.Logger) {
 	_, err := client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(bucket),
 	})
@@ -38,26 +39,29 @@ func ensureBucketExists(ctx context.Context, client *s3.Client, bucket string) {
 		var existsErr *types.BucketAlreadyExists
 
 		if errors.As(err, &ownedErr) {
-			log.Printf("Bucket %s already exists,skipping creation.", bucket)
+			logger.Info("bucket already exists, skipping creation", "bucket", bucket)
 			return
 		}
 		if errors.As(err, &existsErr) {
-			log.Fatalf("Bucket %s already exists but owned by a different account", bucket)
+			logger.Error("bucket already exists but owned by different account", "bucket", bucket)
+			return
 		}
-		log.Fatalf("Failed to create bucket: %v", err)
+		logger.Error("failed to create bucket", "bucket", bucket, "error", err.Error())
+		return
 	}
-	log.Printf("Bucket %s Created Successfully", bucket)
+	logger.Info("bucket created successfully", "bucket", bucket)
 }
 
-func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData) (*s3.Client, *s3.PresignClient, *transfermanager.Client) {
+func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData, logger *slog.Logger) (*s3.Client, *s3.PresignClient, *transfermanager.Client) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	client, err := initWhatEverBucket(ctx, cfg)
 	if err != nil {
-		log.Fatal("Couldnt load default configurations")
+		logger.Error("could not load default storage configuration", "error", err.Error())
+		os.Exit(1)
 	}
-	ensureBucketExists(ctx, client, cfg.BUCKET_NAME)
+	ensureBucketExists(ctx, client, cfg.BUCKET_NAME, logger)
 	presignedClient := s3.NewPresignClient(client)
 	tm := transfermanager.New(client)
 	return client, presignedClient, tm

@@ -76,7 +76,7 @@ func (r *Repository) CreateProduct(ctx context.Context, logger *slog.Logger, dat
 	return &product, nil
 }
 
-func (r *Repository) ToggleProductVisibility(ctx context.Context, productId int, public bool) (*models.Product, error) {
+func (r *Repository) ToggleProductVisibility(ctx context.Context, logger *slog.Logger, productId int, public bool) (*models.Product, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -88,12 +88,14 @@ func (r *Repository) ToggleProductVisibility(ctx context.Context, productId int,
 	`
 	rows, err := r.pool.Query(ctx, query, public, productId)
 	if err != nil {
+		logger.Error("failed to toggle product visibility", "product_id", productId, "public", public, "error", err.Error())
 		return nil, err
 	}
 	product, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[models.Product])
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("product visibility toggled in repository", "product_id", productId, "public", public)
 	return &product, nil
 
 }

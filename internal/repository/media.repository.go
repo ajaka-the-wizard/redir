@@ -127,7 +127,7 @@ func (r *Repository) GetMedia(ctx context.Context, logger *slog.Logger, publicKe
 	return &media, nil
 }
 
-func (r *Repository) ToggleAssetVisibility(ctx context.Context, publicKey string, public bool) (*models.Media, error) {
+func (r *Repository) ToggleAssetVisibility(ctx context.Context, logger *slog.Logger, publicKey string, public bool) (*models.Media, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -139,11 +139,13 @@ func (r *Repository) ToggleAssetVisibility(ctx context.Context, publicKey string
 	`
 	rows, err := r.pool.Query(ctx, query, public, publicKey)
 	if err != nil {
+		logger.Error("failed to toggle asset visibility", "public_key", publicKey, "public", public, "error", err.Error())
 		return nil, err
 	}
 	media, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[models.Media])
 	if err != nil {
 		return nil, err
 	}
+	logger.Info("asset visibility toggled in repository", "public_key", publicKey, "public", public)
 	return &media, nil
 }

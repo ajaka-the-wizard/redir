@@ -38,3 +38,9 @@ type GoogleUser struct {
 	Name          string `json:"name"`
 	Picture       string `json:"picture"`
 }
+
+type GithubUser struct {
+	ID    int    `json:"id"`
+	Login string `json:"login"`
+	Email string `json:"email"`
+}

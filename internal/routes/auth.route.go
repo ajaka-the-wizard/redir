@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AuthRoutes(rg *gin.RouterGroup, cfg *configs.EnvData, store *store.Store) {
+func AuthRoutes(rg *gin.RouterGroup, cfg *configs.EnvData, store store.AuthStore) {
 	auth := rg.Group("/auth")
 
 	o := handlers.InitGoogleOauth(cfg)
@@ -22,4 +22,5 @@ func AuthRoutes(rg *gin.RouterGroup, cfg *configs.EnvData, store *store.Store) {
 	auth.GET("/oauth/google", o.HandleRedirectToGoogle(cfg))
 	auth.GET("/oauth/github", og.HandleRedirectToGithub(cfg))
 	auth.GET("/oauth/google/callback", o.HandleGoogleCallback(cfg, store))
+	// auth.GET("/oauth/github/callback", og.HandleGithubCallback(cfg, store))
 }

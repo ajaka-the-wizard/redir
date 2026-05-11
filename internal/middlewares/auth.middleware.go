@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
+func AuthMiddleware(st store.AuthStore, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		sessionId, err := c.Cookie("sessionId")
@@ -23,7 +22,7 @@ func AuthMiddleware(store *store.Store, cfg *configs.EnvData) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		user, ok := store.GetUser(c.Request.Context(), logger, sessionId)
+		user, ok := st.GetUser(c.Request.Context(), logger, sessionId)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid or expired sessionId"})
 			c.Abort()
@@ -55,18 +54,19 @@ func CheckAndValidateClientKeys(cfg *configs.EnvData, store *store.Store) gin.Ha
 		product, err := store.GetProductById(c.Request.Context(), logger, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
+				logger.Warn("product not found for key validation", "product_id", pIdI)
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
 				c.Abort()
 				return
 			}
-			log.Println(err.Error())
+			logger.Error("failed to get product for key validation", "product_id", pIdI, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			c.Abort()
 			return
 		}
 		err = utils.VerifyMultipStepHash(k, product.PrivateKey)
 		if err != nil {
-			log.Println(err.Error())
+			logger.Warn("invalid key provided for product", "product_id", pIdI)
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid key given"})
 			c.Abort()
 			return
@@ -95,16 +95,18 @@ func CanThisUserAlterThisProduct(cfg *configs.EnvData, store *store.Store) gin.H
 		product, err := store.GetProductById(c.Request.Context(), logger, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
+				logger.Warn("product not found for user permission check", "product_id", pIdI, "user_id", user.Id.String())
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
 				c.Abort()
 				return
 			}
-			log.Println(err.Error())
+			logger.Error("failed to get product for permission check", "product_id", pIdI, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			c.Abort()
 			return
 		}
 		if product.UserId != user.Id {
+			logger.Warn("user attempted to access unauthorized product", "product_id", pIdI, "user_id", user.Id.String(), "product_owner", product.UserId.String())
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "You are forbidden from performing this operation"})
 			c.Abort()
 			return

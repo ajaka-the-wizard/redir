@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -125,9 +124,9 @@ func GetLogger(c *gin.Context) *slog.Logger {
 	return slog.Default()
 }
 
-func PerformLoginActivity(ctx context.Context, store *store.Store, cfg *configs.EnvData, logger *slog.Logger, user *domain.LightUser) (*http.Cookie, error) {
+func PerformLoginActivity(ctx context.Context, st store.AuthStore, cfg *configs.EnvData, logger *slog.Logger, user *domain.LightUser) (*http.Cookie, error) {
 	id := GenCleanedUpUUid()
-	exp, err := store.SetUserOnline(ctx, logger, id, user)
+	exp, err := st.SetUserOnline(ctx, logger, id, user)
 	if err != nil {
 		logger.Error("failed to set user online", "user_id", user.Id.String(), "error", err.Error())
 		return nil, err
@@ -184,7 +183,6 @@ func ValidatePublicKey(s string) (int, bool) {
 	for u := range strings.SplitSeq(others, "-") {
 		err = uuid.Validate(u)
 		if err != nil {
-			log.Println("From this place")
 			return 0, false
 		}
 	}

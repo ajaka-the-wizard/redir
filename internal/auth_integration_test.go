@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 type authResponse struct {
@@ -30,6 +31,10 @@ type authResponse struct {
 
 func setupAuthRouter(t *testing.T) (*gin.Engine, *cache.Sredis, *pgxpool.Pool, *configs.EnvData) {
 	t.Helper()
+	err := godotenv.Load()
+	if err != nil {
+		panic("Env file not found")
+	}
 
 	cfg := &configs.EnvData{
 		DATABASE_URL:   os.Getenv("DATABASE_URL"),

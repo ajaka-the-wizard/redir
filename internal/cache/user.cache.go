@@ -36,3 +36,8 @@ func (r *Sredis) SetFullUser(ctx context.Context, identifier string, by string, 
 	_, err := pipe.Exec(ctx)
 	return err
 }
+
+func (r *Sredis) RevokeFullUser(ctx context.Context, identifier string, by string) error {
+	key := "user-" + by + ":" + identifier
+	return r.rdb.Del(ctx, key).Err()
+}

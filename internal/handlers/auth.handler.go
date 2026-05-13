@@ -50,6 +50,13 @@ func HandleRegister(cfg *configs.EnvData, store store.AuthStore) gin.HandlerFunc
 			logger.Error("failed to create user", "error", err.Error())
 			return
 		}
+		token := utils.GenCleanedUpUUid()
+		err = store.SetVerificationUser(c.Request.Context(), logger, RegisterRequestBody.Email, token)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		// Implement email later?
 		logger.Info("user registered successfully", "email", RegisterRequestBody.Email)
 		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "User registered successfully, please proceed to login"})
 	}
@@ -102,6 +109,23 @@ func HandleLogin(cfg *configs.EnvData, store store.AuthStore) gin.HandlerFunc {
 		setCookieFromHttpCookie(c, sessionCookie)
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "User logged in successfully"})
 		logger.Info("user logged in successfully", "email", user.Email)
+	}
+}
+
+func HandleVerify(store store.AuthStore, cfg *configs.EnvData) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
+		email := c.GetString("email")
+		err := store.SetUserVerified(c.Request.Context(), logger, email)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid data provided"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		c.Redirect(http.StatusFound, cfg.CLIENT_LOGIN_URL)
 	}
 }
 

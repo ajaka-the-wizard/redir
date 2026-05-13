@@ -120,3 +120,21 @@ func (r *Repository) GetUserByProvider(ctx context.Context, logger *slog.Logger,
 
 	return &user, nil
 }
+
+func (r *Repository) SetUserVerified(ctx context.Context, logger *slog.Logger, email string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	query := `
+	UPDATE users
+	SET verified = true
+	WHERE email = $1 AND verified = false
+	`
+	tag, err := r.pool.Exec(ctx, query, email)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}

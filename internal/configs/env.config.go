@@ -30,6 +30,7 @@ type EnvData struct {
 	DATA_GET_PATH                     string
 	REDIS_ADDR                        string
 	REDIS_PASSWORD                    string
+	CLIENT_LOGIN_URL                  string
 }
 
 func LoadEnv(logger *slog.Logger) *EnvData {
@@ -61,6 +62,7 @@ func LoadEnv(logger *slog.Logger) *EnvData {
 		DATA_GET_PATH:                     os.Getenv("DATA_GET_PATH"),
 		REDIS_ADDR:                        os.Getenv("REDIS_ADDR"),
 		REDIS_PASSWORD:                    os.Getenv("REDIS_PASSWORD"),
+		CLIENT_LOGIN_URL:                  os.Getenv("CLIENT_LOGIN_URL"),
 	}
 	config.PRODUCTION = config.ENVIRONMENT == "production"
 	logger.Info("environment variables loaded", "environment", config.ENVIRONMENT)

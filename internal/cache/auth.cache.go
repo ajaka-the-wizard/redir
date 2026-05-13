@@ -53,3 +53,33 @@ func (r *Sredis) RevokeUser(ctx context.Context, sessionId string) error {
 	err := r.rdb.Del(ctx, key).Err()
 	return err
 }
+
+func (r *Sredis) SetVerifcationUser(ctx context.Context, email string, token string) error {
+	key := "token:" + token
+	rev := "verify:email:" + email
+	exp := time.Minute * 15
+	pipe := r.rdb.Pipeline()
+	pipe.Set(ctx, key, email, exp)
+	pipe.Set(ctx, rev, token, exp)
+	_, err := pipe.Exec(ctx)
+	return err
+}
+func (r *Sredis) GetVerifcationUser(ctx context.Context, token string) (string, error) {
+	key := "token:" + token
+	value, err := r.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return "", err
+	}
+	// delete both mappings
+	r.rdb.Del(ctx, key).Err()
+	r.rdb.Del(ctx, "verify:email:"+value).Err()
+	return value, nil
+}
+func (r *Sredis) GetVerificationTokenByEmail(ctx context.Context, email string) (string, error) {
+	key := "verify:email:" + email
+	v, err := r.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return "", err
+	}
+	return v, nil
+}

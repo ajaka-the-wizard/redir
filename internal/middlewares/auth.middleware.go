@@ -116,3 +116,23 @@ func CanThisUserAlterThisProduct(cfg *configs.EnvData, store *store.Store) gin.H
 		c.Next()
 	}
 }
+
+func ValidateToken(store store.AuthStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		logger := utils.GetLogger(c)
+		if token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Token not found"})
+			c.Abort()
+			return
+		}
+		email, err := store.GetVerificationUser(c.Request.Context(), logger, token)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid token"})
+			c.Abort()
+			return
+		}
+		c.Set("email", email)
+		c.Next()
+	}
+}

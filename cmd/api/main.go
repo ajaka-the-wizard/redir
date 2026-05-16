@@ -1,13 +1,14 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/ajaka-the-wizard/redir/internal"
 )
 
 func main() {
+	logger := slog.Default()
 	if err := internal.Listen(); err != nil {
-		log.Fatalf("couldn't bind to port; %v", err)
+		logger.Error("failed to start server", "error", err.Error())
 	}
 }

@@ -32,7 +32,7 @@ func AttachLoggerToContext() gin.HandlerFunc {
 	}
 }
 
-func PerformBasicCalculations() gin.HandlerFunc {
+func PerformBasicRequestCycleCalculations() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path

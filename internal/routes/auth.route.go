@@ -3,21 +3,25 @@ package routes
 import (
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/handlers"
-	"github.com/ajaka-the-wizard/redir/internal/memory"
 	"github.com/ajaka-the-wizard/redir/internal/middlewares"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func AuthRoutes(rg *gin.RouterGroup, pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) {
+func AuthRoutes(rg *gin.RouterGroup, cfg *configs.EnvData, store store.AuthStore) {
 	auth := rg.Group("/auth")
-	auth.Use(middlewares.RL.GetLimiterForAuth(5))
-	auth.POST("/register", middlewares.RegisterValidationMiddleware, handlers.HandleRegister(pool, cfg))
-	auth.POST("/login", middlewares.LoginValidationMiddleware, handlers.HandleLogin(pool, cfg, mmap))
-	auth.POST("/logout", middlewares.AuthMiddleware(mmap), handlers.HandleLogout(mmap, cfg))
+
 	o := handlers.InitGoogleOauth(cfg)
 	og := handlers.InitGithubOauth(cfg)
+
+	auth.Use(middlewares.RL.GetLimiterForAuth(5))
+
+	auth.POST("/register", middlewares.RegisterValidationMiddleware, handlers.HandleRegister(cfg, store))
+	auth.POST("/login", middlewares.LoginValidationMiddleware, handlers.HandleLogin(cfg, store))
+	auth.GET("/verify", middlewares.ValidateToken(store), handlers.HandleVerify(store, cfg))
+	auth.POST("/logout", middlewares.AuthMiddleware(store, cfg), handlers.HandleLogout(store, cfg))
 	auth.GET("/oauth/google", o.HandleRedirectToGoogle(cfg))
 	auth.GET("/oauth/github", og.HandleRedirectToGithub(cfg))
-	auth.GET("oauth/google/callback", o.HandleGoogleCallback(pool, cfg, mmap))
+	auth.GET("/oauth/google/callback", o.HandleGoogleCallback(cfg, store))
+	// auth.GET("/oauth/github/callback", og.HandleGithubCallback(cfg, store))
 }

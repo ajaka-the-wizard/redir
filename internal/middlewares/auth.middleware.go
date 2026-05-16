@@ -2,31 +2,29 @@ package middlewares
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
-	"github.com/ajaka-the-wizard/redir/internal/memory"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func AuthMiddleware(mmap *memory.AuthMemoryMap) gin.HandlerFunc {
+func AuthMiddleware(st store.AuthStore, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		sessionId, err := c.Cookie("sessionId")
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": http.StatusText(http.StatusUnauthorized)})
 			c.Abort()
 			return
 		}
-		user, ok := mmap.GetUser(sessionId)
+		user, ok := st.GetUser(c.Request.Context(), logger, sessionId)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid sessionId"})
+			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid or expired sessionId"})
 			c.Abort()
 			return
 		}
@@ -36,8 +34,9 @@ func AuthMiddleware(mmap *memory.AuthMemoryMap) gin.HandlerFunc {
 	}
 }
 
-func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func CheckAndValidateClientKeys(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		pId := c.GetHeader("X-Product")
 		pKey := c.GetHeader("Authorization")
 		k, ok := strings.CutPrefix(pKey, "Bearer ")
@@ -52,34 +51,35 @@ func CheckAndValidateClientKeys(pool *pgxpool.Pool, cfg *configs.EnvData) gin.Ha
 			c.Abort()
 			return
 		}
-		key, err := repository.GetProductById(pool, cfg, pIdI)
+		product, err := store.GetProductById(c.Request.Context(), logger, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
+				logger.Warn("product not found for key validation", "product_id", pIdI)
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
 				c.Abort()
 				return
 			}
-			log.Println("xxx")
-			log.Println(err.Error())
+			logger.Error("failed to get product for key validation", "product_id", pIdI, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			c.Abort()
 			return
 		}
-		err = utils.VerifyMultipStepHash(k, key.PrivateKey)
+		err = utils.VerifyMultipStepHash(k, product.PrivateKey)
 		if err != nil {
-			log.Println(err.Error())
+			logger.Warn("invalid key provided for product", "product_id", pIdI)
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid key given"})
 			c.Abort()
 			return
 		}
-		c.Set("client", key)
+		c.Set("product", product)
 		c.Next()
 	}
 }
 
-func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func CanThisUserAlterThisProduct(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := utils.GetUser(c)
+		logger := utils.GetLogger(c)
 		if !ok || user == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": http.StatusText(http.StatusUnauthorized)})
 			c.Abort()
@@ -92,26 +92,47 @@ func CanThisUserAlterThisProduct(pool *pgxpool.Pool, cfg *configs.EnvData) gin.H
 			c.Abort()
 			return
 		}
-		product, err := repository.GetProductById(pool, cfg, pIdI)
+		product, err := store.GetProductById(c.Request.Context(), logger, pIdI)
 		if err != nil {
 			if err == pgx.ErrNoRows {
+				logger.Warn("product not found for user permission check", "product_id", pIdI, "user_id", user.Id.String())
 				c.JSON(http.StatusNotFound, gin.H{"message": fmt.Sprintf("Product with id of %d not found", pIdI)})
 				c.Abort()
 				return
 			}
-			log.Println("xxx")
-			log.Println(err.Error())
+			logger.Error("failed to get product for permission check", "product_id", pIdI, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": "Something went wrong"})
 			c.Abort()
 			return
 		}
 		if product.UserId != user.Id {
+			logger.Warn("user attempted to access unauthorized product", "product_id", pIdI, "user_id", user.Id.String(), "product_owner", product.UserId.String())
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "You are forbidden from performing this operation"})
 			c.Abort()
 			return
 		}
-		c.Set("product", &product)
+		c.Set("product", product)
 		c.Set("id", pIdI)
+		c.Next()
+	}
+}
+
+func ValidateToken(store store.AuthStore) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		logger := utils.GetLogger(c)
+		if token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Token not found"})
+			c.Abort()
+			return
+		}
+		email, err := store.GetVerificationUser(c.Request.Context(), logger, token)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid token"})
+			c.Abort()
+			return
+		}
+		c.Set("email", email)
 		c.Next()
 	}
 }

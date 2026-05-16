@@ -1,0 +1,1 @@
+ALTER TABLE medias ALTER COLUMN file_type DROP DEFAULT;

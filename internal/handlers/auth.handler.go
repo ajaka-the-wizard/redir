@@ -10,96 +10,86 @@ import (
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
-	"github.com/ajaka-the-wizard/redir/internal/memory"
-	"github.com/ajaka-the-wizard/redir/internal/repository"
+	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
 )
 
-func HandleRegister(pool *pgxpool.Pool, cfg *configs.EnvData) gin.HandlerFunc {
+func HandleRegister(cfg *configs.EnvData, store store.AuthStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
-		logger.Info("Beginning registration for user")
-		var response domain.
-			CreateUserResponse
-		response.Message = "Something went wrong"
-		response.Success = false
-
+		logger.Info("beginning registration for user")
 		val, _ := c.Get("reg")
 		RegisterRequestBody, ok := val.(*domain.
 			CreateUserDetails)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, response)
-			logger.Error("Couldn't get user reg details from context")
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			logger.Error("couldn't get user registration details from context")
 			return
 		}
 		hash, err := bcrypt.GenerateFromPassword([]byte(RegisterRequestBody.Password), bcrypt.DefaultCost)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, &response)
-			logger.Error("Couldn't hash user password", "error", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			logger.Error("couldn't hash user password", "error", err.Error())
 			return
 		}
 		RegisterRequestBody.Password = string(hash)
-		err = repository.CreateUser(pool, RegisterRequestBody, cfg)
+		err = store.CreateUser(c.Request.Context(), logger, RegisterRequestBody, cfg)
 		if err != nil {
 			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
-				response.Message = "Email is already registered"
-				c.JSON(http.StatusConflict, &response)
-				logger.Warn("Email unique constraint conflict", "error", err.Error())
+				c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Email is already registered"})
+				logger.Warn("email unique constraint conflict during registration", "email", RegisterRequestBody.Email)
 				return
 			}
-			c.JSON(http.StatusInternalServerError, &response)
-			logger.Error("Something went wrong", "error", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			logger.Error("failed to create user", "error", err.Error())
 			return
 		}
-		response.Success = true
-		response.Message = "User registered successfully, please proceed to login"
-		logger.Info("User registered successfully")
-		c.JSON(http.StatusCreated, &response)
+		token := utils.GenCleanedUpUUid()
+		err = store.SetVerificationUser(c.Request.Context(), logger, RegisterRequestBody.Email, token)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		// Implement email later?
+		logger.Info("user registered successfully", "email", RegisterRequestBody.Email)
+		c.JSON(http.StatusCreated, gin.H{"success": true, "message": "User registered successfully, please proceed to login"})
 	}
 }
 
-func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) gin.HandlerFunc {
+func HandleLogin(cfg *configs.EnvData, store store.AuthStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
-		logger.Info("Starting user login attempt")
-		var response domain.
-			LoginResponse
-		response.Message = "Something went wrong"
-		response.Success = false
+		logger.Info("starting user login attempt")
 
 		val, _ := c.Get("login")
 		LoginRequestBody, ok := val.(*domain.
 			LoginUserDetails)
 		if !ok {
-			c.JSON(http.StatusInternalServerError, response)
-			logger.Error("Couldn't get user login details from context")
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			logger.Error("couldn't get user login details from context")
 			return
 		}
-		user, err := repository.GetUserByEmail(pool, cfg, LoginRequestBody.Email)
+		user, err := store.GetUserByEmail(c.Request.Context(), logger, cfg, LoginRequestBody.Email)
 		if err != nil {
-			response.Message = "Invalid credentials"
-			c.JSON(http.StatusUnauthorized, &response)
-			logger.Warn("User provided invalid credentials", "error", err.Error())
+			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid credentials"})
+			logger.Warn("login attempt with non-existent email", "email", LoginRequestBody.Email)
 			return
 		}
 		if !user.Verified {
-			response.Message = "Please verify email before logging in"
-			c.JSON(http.StatusForbidden, &response)
-			logger.Warn("User login attempt without email verification rejected")
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "Please verify email before logging in"})
+			logger.Warn("login attempt with unverified email", "email", user.Email)
 			return
 		}
 		err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(LoginRequestBody.Password))
 		if err != nil {
-			response.Message = "Invalid credentials"
-			c.JSON(http.StatusUnauthorized, &response)
-			logger.Warn("User provided invalid credentials", "error", err.Error())
+			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid credentials"})
+			logger.Warn("login attempt with wrong password", "email", LoginRequestBody.Email)
 			return
 		}
 		lightUser := domain.
@@ -110,23 +100,50 @@ func HandleLogin(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemo
 			Paid:  user.Paid,
 		}
 
-		cookie := utils.PerformLoginActivity(mmap, cfg, &lightUser)
-		c.SetCookieData(cookie)
-		response.Success = true
-		response.Message = "User logged in successfully"
-		c.JSON(http.StatusOK, &response)
-		logger.Info("User logged in successfully")
+		sessionCookie, err := utils.PerformLoginActivity(c.Request.Context(), store, cfg, logger, &lightUser)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong, couldn't sign you in"})
+			logger.Error("failed to create session", "email", user.Email, "error", err.Error())
+			return
+		}
+		setCookieFromHttpCookie(c, sessionCookie)
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "User logged in successfully"})
+		logger.Info("user logged in successfully", "email", user.Email)
 	}
 }
 
-func HandleLogout(mmap *memory.AuthMemoryMap, cfg *configs.EnvData) gin.HandlerFunc {
+func HandleVerify(store store.AuthStore, cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
+		email := c.GetString("email")
+		err := store.SetUserVerified(c.Request.Context(), logger, email)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid data provided"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
+		c.Redirect(http.StatusFound, cfg.CLIENT_LOGIN_URL)
+	}
+}
+
+func HandleLogout(store store.AuthStore, cfg *configs.EnvData) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		logger := utils.GetLogger(c)
 		val, _ := c.Get("sessionId")
 		sessionId, _ := val.(string)
-		mmap.RevokeUser(sessionId)
+		err := store.RevokeUser(c.Request.Context(), logger, sessionId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			logger.Error("failed to revoke session", "session_id", sessionId, "error", err.Error())
+			return
+		}
 		exp := time.Now().Add(-1 * time.Second)
-		cookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.PRODUCTION, exp)
-		c.SetCookieData(cookie)
+		sessioncookie := utils.SetAndGetCookieDetails("sessionId", "", cfg.PRODUCTION, exp)
+		setCookieFromHttpCookie(c, sessioncookie)
+		logger.Info("user logged out successfully")
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -154,18 +171,19 @@ func (g *GoogleOauth) HandleRedirectToGoogle(cfg *configs.EnvData) gin.HandlerFu
 		state := utils.GenUUID()
 		exp := time.Now().Add(15 * time.Minute)
 		cookie := utils.SetAndGetCookieDetails("state", state, cfg.PRODUCTION, exp)
-		c.SetCookieData(cookie)
+		setCookieFromHttpCookie(c, cookie)
 		c.Redirect(http.StatusFound, g.o.AuthCodeURL(state))
 	}
 }
 
-func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvData, mmap *memory.AuthMemoryMap) gin.HandlerFunc {
+func (g *GoogleOauth) HandleGoogleCallback(cfg *configs.EnvData, store store.AuthStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := "google"
-		// logger := utils.GetLogger(c)
+		logger := utils.GetLogger(c)
 		state, err := c.Cookie("state")
 		returnedState := c.Query("state")
 		if err != nil || state != returnedState {
+			logger.Warn("invalid or expired state token during oauth callback", "provider", provider)
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid or expired state token"})
 			return
 		}
@@ -175,54 +193,69 @@ func (g *GoogleOauth) HandleGoogleCallback(pool *pgxpool.Pool, cfg *configs.EnvD
 
 		token, err := g.o.Exchange(ctx, code)
 		if err != nil {
+			logger.Error("failed to exchange oauth code", "provider", provider, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
 		client := g.o.Client(ctx, token)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://www.googleapis.com/oauth2/v3/userinfo", nil)
 		if err != nil {
+			logger.Error("failed to create userinfo request", "provider", provider, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 			return
 		}
 		resp, err := client.Do(req)
 		if err != nil {
+			logger.Error("failed to get user info from provider", "provider", provider, "error", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "failed to get user info"})
 			return
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			logger.Error("non-ok status from provider userinfo endpoint", "provider", provider, "status", resp.StatusCode)
 			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to get user info"})
 			return
 		}
 		data, err := io.ReadAll(resp.Body)
 		if err != nil {
+			logger.Error("failed to read userinfo response body", "provider", provider, "error", err.Error())
 			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to get user info"})
 			return
 		}
 		var user domain.GoogleUser
 		if err := json.Unmarshal(data, &user); err != nil {
+			logger.Error("failed to unmarshal userinfo response", "provider", provider, "error", err.Error())
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
 		if !user.VerifiedEmail {
+			logger.Warn("oauth callback with unverified email", "provider", provider, "email", user.Email)
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "Email provided is unverified"})
 			return
 		}
-		u, err := repository.GetUserByProvider(pool, cfg, provider, user.ID)
+		u, err := store.GetUserByProvider(c.Request.Context(), logger, cfg, provider, user.ID)
 		if err != nil {
 			if err == pgx.ErrNoRows {
-				u, err = repository.CreateOrLinkOauth(pool, cfg, user.ID, user.Email, user.Name, provider)
+				u, err = store.CreateOrLinkOauth(c.Request.Context(), logger, cfg, user.ID, user.Email, user.Name, provider)
 				if err != nil {
+					logger.Error("failed to create or link oauth user", "provider", provider, "email", user.Email, "error", err.Error())
 					c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 					return
 				}
 			} else {
+				logger.Error("failed to get user by provider", "provider", provider, "error", err.Error())
 				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
 				return
 			}
 		}
-		cookie := utils.PerformLoginActivity(mmap, cfg, u)
-		c.SetCookieData(cookie)
+		sessionIdCookie, err := utils.PerformLoginActivity(c.Request.Context(), store, cfg, logger, u)
+		if err != nil {
+			logger.Error("failed to create session after oauth login", "provider", provider, "email", user.Email, "error", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong, couldn't sign you in"})
+			return
+		}
+		setCookieFromHttpCookie(c, sessionIdCookie)
+		logger.Info("user logged in via oauth", "provider", provider, "email", user.Email)
 		c.Redirect(http.StatusFound, cfg.CLIENT_DASHBOARD)
 	}
 }
@@ -245,11 +278,91 @@ func InitGithubOauth(cfg *configs.EnvData) *GithubOauth {
 }
 func (g *GithubOauth) HandleRedirectToGithub(cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// logger := utils.GetLogger(c)
+		logger := utils.GetLogger(c)
 		state := utils.GenUUID()
 		exp := time.Now().Add(15 * time.Minute)
 		cookie := utils.SetAndGetCookieDetails("state", state, cfg.PRODUCTION, exp)
-		c.SetCookieData(cookie)
+		setCookieFromHttpCookie(c, cookie)
+		logger.Info("redirecting to github oauth", "state", state)
 		c.Redirect(http.StatusFound, g.o.AuthCodeURL(state))
 	}
 }
+
+// func (g *GithubOauth) HandleGithubCallback(cfg *configs.EnvData, store *store.Store) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		provider := "github"
+// 		logger := utils.GetLogger(c)
+// 		state, err := c.Cookie("state")
+// 		returnedState := c.Query("state")
+// 		if err != nil || state != returnedState {
+// 			logger.Warn("invalid or expired state token during oauth callback", "provider", provider)
+// 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid or expired state token"})
+// 			return
+// 		}
+// 		code := c.Query("code")
+// 		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+// 		defer cancel()
+
+// 		token, err := g.o.Exchange(ctx, code)
+// 		if err != nil {
+// 			logger.Error("failed to exchange oauth code", "provider", provider, "error", err.Error())
+// 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+// 			return
+// 		}
+// 		client := g.o.Client(ctx, token)
+// 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user", nil)
+// 		if err != nil {
+// 			logger.Error("failed to create user request", "provider", provider, "error", err.Error())
+// 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+// 			return
+// 		}
+// 		resp, err := client.Do(req)
+// 		if err != nil {
+// 			logger.Error("failed to get user info from provider", "provider", provider, "error", err.Error())
+// 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "failed to get user info"})
+// 			return
+// 		}
+// 		defer resp.Body.Close()
+// 		if resp.StatusCode != http.StatusOK {
+// 			logger.Error("non-ok status from provider userinfo endpoint", "provider", provider, "status", resp.StatusCode)
+// 			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to get user info"})
+// 			return
+// 		}
+// 		data, err := io.ReadAll(resp.Body)
+// 		if err != nil {
+// 			logger.Error("failed to read userinfo response body", "provider", provider, "error", err.Error())
+// 			c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "failed to get user info"})
+// 			return
+// 		}
+// 		var user domain.GithubUser
+// 		if err := json.Unmarshal(data, &user); err != nil {
+// 			logger.Error("failed to unmarshal userinfo response", "provider", provider, "error", err.Error())
+// 			c.AbortWithStatus(http.StatusInternalServerError)
+// 			return
+// 		}
+// 		u, err := store.GetUserByProvider(c.Request.Context(), logger, cfg, provider, strconv.Itoa(user.ID))
+// 		if err != nil {
+// 			if err == pgx.ErrNoRows {
+// 				u, err = store.CreateOrLinkOauth(c.Request.Context(), logger, cfg, strconv.Itoa(user.ID), user.Email, user.Login, provider)
+// 				if err != nil {
+// 					logger.Error("failed to create or link oauth user", "provider", provider, "email", user.Email, "error", err.Error())
+// 					c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+// 					return
+// 				}
+// 			} else {
+// 				logger.Error("failed to get user by provider", "provider", provider, "error", err.Error())
+// 				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+// 				return
+// 			}
+// 		}
+// 		sessionIdCookie, err := utils.PerformLoginActivity(c.Request.Context(), store, cfg, logger, u)
+// 		if err != nil {
+// 			logger.Error("failed to create session after oauth login", "provider", provider, "email", user.Email, "error", err.Error())
+// 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong, couldn't sign you in"})
+// 			return
+// 		}
+// 		c.SetCookieData(sessionIdCookie)
+// 		logger.Info("user logged in via oauth", "provider", provider, "email", user.Email)
+// 		c.Redirect(http.StatusFound, cfg.CLIENT_DASHBOARD)
+// 	}
+// }

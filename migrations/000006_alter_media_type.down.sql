@@ -1,0 +1,1 @@
+ALTER TYPE media_type REMOVE VALUE IF EXISTS 'file';

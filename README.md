@@ -37,12 +37,10 @@ This repository is an active backend project. The codebase is already shaped lik
 ## Known limitations
 
 - Local setup docs still need more executable examples, especially for migrations and external services.
-- API response shapes are not fully standardized yet.
 - Some exported names need Go-style cleanup and shortening.
 - Cache invalidation rules should be documented and tightened for products, users, media, and presigned URLs.
 - Some handler unit tests are currently commented out while integration tests cover the heavier auth flow.
 - Local test setup depends on external services such as Postgres and Redis.
-- Upload error handling needs more explicit behavior for partial failures, retries, and object-storage/DB consistency.
 - `go.mod` dependency metadata should be cleaned up with `go mod tidy`.
 
 ## Architecture
@@ -111,7 +109,6 @@ Required or supported environment variables include:
 
 - `DATABASE_URL`
 - `PORT`
-- `CONTEXT_TIMEOUT`
 - `SERVER_ADDRESS`
 - `ENVIRONMENT`
 - `GOOGLE_CLIENT_ID`
@@ -127,7 +124,6 @@ Required or supported environment variables include:
 - `STORAGE_SERVICE_ENDPOINT`
 - `BUCKET_NAME`
 - `BUCKET_ROOT`
-- `DOMAIN`
 - `DATA_GET_PATH`
 - `REDIS_ADDR`
 - `REDIS_PASSWORD`
@@ -179,10 +175,7 @@ It is a strong portfolio project because it shows the shape of a real service: u
 - Standardize API response shapes.
 - Clean up exported names and Go idioms.
 - Document cache invalidation rules.
-- Add fast unit-test targets separate from DB/Redis integration tests.
-- Restore or replace commented handler tests.
 - Add Docker Compose for local Postgres, Redis, and S3-compatible storage.
 - Add migration commands to the makefile.
-- Improve upload partial-failure handling and retry/idempotency behavior.
 - Add OpenAPI documentation or a concise route reference.
 - Run `go mod tidy` and keep dependency metadata clean.

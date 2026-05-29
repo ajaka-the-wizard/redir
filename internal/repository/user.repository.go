@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -25,7 +26,8 @@ func (r *Repository) CreateUser(ctx context.Context, logger *slog.Logger, user *
 	_, err := r.pool.Exec(ctx, query, user.FullName, user.Email, user.Password)
 	if err != nil {
 		logger.Error("failed to create user", "email", user.Email, "error", err.Error())
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return errs.ErrDuplicateEmail
 		}
 		return err

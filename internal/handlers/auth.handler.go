@@ -3,13 +3,14 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
+	"github.com/ajaka-the-wizard/redir/internal/errs"
 	"github.com/ajaka-the-wizard/redir/internal/store"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
@@ -41,7 +42,7 @@ func HandleRegister(cfg *configs.EnvData, store store.AuthStore) gin.HandlerFunc
 		RegisterRequestBody.Password = string(hash)
 		err = store.CreateUser(c.Request.Context(), logger, RegisterRequestBody, cfg)
 		if err != nil {
-			if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {
+			if errors.Is(err, errs.ErrDuplicateEmail) {
 				c.JSON(http.StatusConflict, gin.H{"success": false, "message": "Email is already registered"})
 				logger.Warn("email unique constraint conflict during registration", "email", RegisterRequestBody.Email)
 				return

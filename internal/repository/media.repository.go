@@ -90,7 +90,7 @@ func (r *Repository) RetriveBatch(ctx context.Context, logger *slog.Logger, batc
 	defer cancel()
 
 	query := `
-	SELECT * 
+	SELECT *
 	FROM medias
 	WHERE batch_id = $1 and status = 'pending'
 	`
@@ -113,7 +113,7 @@ func (r *Repository) GetMedia(ctx context.Context, logger *slog.Logger, publicKe
 	query := `
 	SELECT *
 	FROM medias
-	WHERE public_key = $1
+	WHERE public_key = $1 AND status = 'completed'
 	`
 	rows, err := r.pool.Query(ctx, query, publicKey)
 	if err != nil {

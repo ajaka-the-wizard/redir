@@ -7,9 +7,11 @@ import (
 
 	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/domain"
+	"github.com/ajaka-the-wizard/redir/internal/errs"
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (r *Repository) CreateUser(ctx context.Context, logger *slog.Logger, user *domain.
@@ -23,6 +25,9 @@ func (r *Repository) CreateUser(ctx context.Context, logger *slog.Logger, user *
 	_, err := r.pool.Exec(ctx, query, user.FullName, user.Email, user.Password)
 	if err != nil {
 		logger.Error("failed to create user", "email", user.Email, "error", err.Error())
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+			return errs.ErrDuplicateEmail
+		}
 		return err
 	}
 	logger.Info("user created successfully", "email", user.Email)

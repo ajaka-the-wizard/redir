@@ -1,6 +1,6 @@
 package domain
 
-var (
+const (
 	RedirRedisSessionPrefix      = "redir:session:"
 	RedirVerificationTokenPrefix = "redir:verify:token:"
 	RedirVerificationEmailPrefix = "redir:verify:email:"

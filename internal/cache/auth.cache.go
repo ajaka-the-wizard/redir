@@ -15,7 +15,7 @@ func (r *Sredis) SetUserOnline(ctx context.Context, sessionId string, u *domain.
 	LightUser) (time.Time, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	key := "user:" + sessionId
+	key := domain.RedirRedisSessionPrefix + sessionId
 	exp := time.Hour * 24
 	m := structToInterface(*u)
 	pipe := r.rdb.Pipeline()
@@ -33,7 +33,7 @@ func (r *Sredis) GetUser(ctx context.Context, sessionId string) (*domain.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	var user domain.LightUser
-	key := "user:" + sessionId
+	key := domain.RedirRedisSessionPrefix + sessionId
 	s := r.rdb.HGetAll(ctx, key)
 	u, err := s.Result()
 	if err != nil || len(u) == 0 {
@@ -49,34 +49,33 @@ func (r *Sredis) GetUser(ctx context.Context, sessionId string) (*domain.
 func (r *Sredis) RevokeUser(ctx context.Context, sessionId string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	key := "user:" + sessionId
+	key := domain.RedirRedisSessionPrefix + sessionId
 	err := r.rdb.Del(ctx, key).Err()
 	return err
 }
 
 func (r *Sredis) SetVerifcationUser(ctx context.Context, email string, token string) error {
-	key := "token:" + token
-	rev := "verify:email:" + email
+	key := domain.RedirVerificationTokenPrefix + token
+	rev := domain.RedirVerificationEmailPrefix + email
 	exp := time.Minute * 15
 	pipe := r.rdb.Pipeline()
-	pipe.Set(ctx, key, email, exp)
-	pipe.Set(ctx, rev, token, exp)
+	pipe.SetNX(ctx, key, email, exp)
+	pipe.SetNX(ctx, rev, token, exp)
 	_, err := pipe.Exec(ctx)
 	return err
 }
 func (r *Sredis) GetVerifcationUser(ctx context.Context, token string) (string, error) {
-	key := "token:" + token
+	key := domain.RedirVerificationTokenPrefix + token
 	value, err := r.rdb.Get(ctx, key).Result()
 	if err != nil {
 		return "", err
 	}
-	// delete both mappings
 	r.rdb.Del(ctx, key).Err()
-	r.rdb.Del(ctx, "verify:email:"+value).Err()
+	r.rdb.Del(ctx, domain.RedirVerificationEmailPrefix+value).Err()
 	return value, nil
 }
 func (r *Sredis) GetVerificationTokenByEmail(ctx context.Context, email string) (string, error) {
-	key := "verify:email:" + email
+	key := domain.RedirVerificationEmailPrefix + email
 	v, err := r.rdb.Get(ctx, key).Result()
 	if err != nil {
 		return "", err

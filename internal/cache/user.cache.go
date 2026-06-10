@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/redis/go-redis/v9"
 )
 
 func (r *Sredis) GetFullUser(ctx context.Context, identifier string, by string) (*models.User, error) {
 	var user models.User
-	key := "user-" + by + ":" + identifier
+	key := domain.RedirRedisUserPrefix + by + ":" + identifier
 	s := r.rdb.HGetAll(ctx, key)
 	u, err := s.Result()
 	if err != nil {
@@ -27,7 +28,7 @@ func (r *Sredis) GetFullUser(ctx context.Context, identifier string, by string) 
 }
 
 func (r *Sredis) SetFullUser(ctx context.Context, identifier string, by string, u models.User) error {
-	key := "user-" + by + ":" + identifier
+	key := domain.RedirRedisUserPrefix + by + ":" + identifier
 	exp := time.Minute * 5
 	m := structToInterface(u)
 	pipe := r.rdb.Pipeline()
@@ -38,6 +39,6 @@ func (r *Sredis) SetFullUser(ctx context.Context, identifier string, by string, 
 }
 
 func (r *Sredis) RevokeFullUser(ctx context.Context, identifier string, by string) error {
-	key := "user-" + by + ":" + identifier
+	key := domain.RedirRedisUserPrefix + by + ":" + identifier
 	return r.rdb.Del(ctx, key).Err()
 }

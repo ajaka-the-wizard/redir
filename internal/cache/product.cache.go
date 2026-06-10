@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ajaka-the-wizard/redir/internal/domain"
 	"github.com/ajaka-the-wizard/redir/internal/models"
 	"github.com/redis/go-redis/v9"
 )
 
 func (r *Sredis) GetProduct(ctx context.Context, productId int) (*models.Product, error) {
 	var product models.Product
-	key := fmt.Sprintf("product:%d", productId)
+	key := fmt.Sprintf("%s%d", domain.RedirRedisProductPrefix, productId)
 	s := r.rdb.HGetAll(ctx, key)
 	p, err := s.Result()
 	if err != nil {
@@ -28,7 +29,7 @@ func (r *Sredis) GetProduct(ctx context.Context, productId int) (*models.Product
 }
 
 func (r *Sredis) SetProduct(ctx context.Context, product models.Product) error {
-	key := fmt.Sprintf("product:%d", product.ProductId)
+	key := fmt.Sprintf("%s%d", domain.RedirRedisProductPrefix, product.ProductId)
 	exp := 20 * time.Minute
 	m := structToInterface(product)
 	pipe := r.rdb.Pipeline()

@@ -173,7 +173,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return decodeAPIError(resp)
 }
 
@@ -193,6 +193,9 @@ func (c *Client) Upload(ctx context.Context, files []File, opts *UploadOptions) 
 	batchID := uuid.New()
 	if opts != nil && opts.BatchID != nil {
 		batchID = *opts.BatchID
+		if batchID == uuid.Nil {
+			return nil, errors.New("redir: batch id cannot be nil")
+		}
 	}
 	auto := c.auto
 	if opts != nil && opts.Auto != nil {
@@ -213,16 +216,32 @@ func (c *Client) Upload(ctx context.Context, files []File, opts *UploadOptions) 
 	}
 
 	result := &UploadResult{BatchID: batchID}
+	var lastErr error
 	for attempt := 1; attempt <= attemptsAllowed && len(pending) > 0; attempt++ {
 		media, err := c.uploadOnce(ctx, batchID, files, pending)
 		result.Attempts = attempt
 		if err != nil {
-			return result, err
+			lastErr = err
+			if !isRetryable(err) {
+				for _, m := range media {
+					mediaBySeq[m.SeqID] = m
+				}
+				result.Media = orderedMedia(wanted, mediaBySeq)
+				result.MissingSeqIDs = missingSeqIDs(wanted, mediaBySeq)
+				return result, err
+			}
+			continue
 		}
+		lastErr = nil
 		for _, m := range media {
 			mediaBySeq[m.SeqID] = m
 		}
 		pending = missingSeqIDs(wanted, mediaBySeq)
+	}
+	if lastErr != nil {
+		result.Media = orderedMedia(wanted, mediaBySeq)
+		result.MissingSeqIDs = missingSeqIDs(wanted, mediaBySeq)
+		return result, lastErr
 	}
 
 	result.Media = orderedMedia(wanted, mediaBySeq)
@@ -244,6 +263,9 @@ func (c *Client) Upload(ctx context.Context, files []File, opts *UploadOptions) 
 }
 
 func (c *Client) Commit(ctx context.Context, batchID uuid.UUID) error {
+	if batchID == uuid.Nil {
+		return errors.New("redir: batch id cannot be nil")
+	}
 	req, err := c.newRequest(ctx, http.MethodPut, "/api/v1/client/commit/"+batchID.String(), nil)
 	if err != nil {
 		return err
@@ -252,49 +274,63 @@ func (c *Client) Commit(ctx context.Context, batchID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return decodeAPIError(resp)
 }
 
 func (c *Client) uploadOnce(ctx context.Context, batchID uuid.UUID, files []File, seqIDs []int) ([]Media, error) {
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	for _, seqID := range seqIDs {
-		file := files[seqID]
-		if _, err := file.Body.Seek(0, io.SeekStart); err != nil {
-			return nil, fmt.Errorf("redir: could not rewind file %q: %w", file.Name, err)
-		}
-		contentType := file.ContentType
-		if contentType == "" {
-			contentType = detectContentType(file.Body)
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
+	contentType := writer.FormDataContentType()
+
+	var writeErr error
+	go func() {
+		defer pw.Close()
+		for _, seqID := range seqIDs {
+			file := files[seqID]
 			if _, err := file.Body.Seek(0, io.SeekStart); err != nil {
-				return nil, fmt.Errorf("redir: could not rewind file %q: %w", file.Name, err)
+				writeErr = fmt.Errorf("redir: could not rewind file %q: %w", file.Name, err)
+				return
+			}
+			ct := file.ContentType
+			if ct == "" {
+				ct = detectContentType(file.Body)
+				if _, err := file.Body.Seek(0, io.SeekStart); err != nil {
+					writeErr = fmt.Errorf("redir: could not rewind file %q: %w", file.Name, err)
+					return
+				}
+			}
+			part, err := writer.CreatePart(filePartHeader(file.Name, ct, seqID))
+			if err != nil {
+				writeErr = err
+				return
+			}
+			if _, err := io.Copy(part, file.Body); err != nil {
+				writeErr = err
+				return
 			}
 		}
-		part, err := writer.CreatePart(filePartHeader(file.Name, contentType, seqID))
-		if err != nil {
-			return nil, err
+		if err := writer.Close(); err != nil {
+			writeErr = err
 		}
-		if _, err := io.Copy(part, file.Body); err != nil {
-			return nil, err
-		}
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
+	}()
 
-	req, err := c.newRequest(ctx, http.MethodPost, "/api/v1/client/upload", &body)
+	req, err := c.newRequest(ctx, http.MethodPost, "/api/v1/client/upload", pr)
 	if err != nil {
+		pr.Close()
 		return nil, err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("X-Batch-ID", batchID.String())
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	if writeErr != nil {
+		return nil, writeErr
+	}
 	if err := decodeAPIError(resp); err != nil {
 		return nil, err
 	}
@@ -345,6 +381,20 @@ func decodeAPIError(resp *http.Response) error {
 		msg = http.StatusText(resp.StatusCode)
 	}
 	return fmt.Errorf("redir: api returned %d: %s", resp.StatusCode, msg)
+}
+
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	if strings.Contains(errStr, "api returned 5") {
+		return true
+	}
+	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "connection") {
+		return true
+	}
+	return false
 }
 
 func filePartHeader(name, contentType string, seqID int) textproto.MIMEHeader {

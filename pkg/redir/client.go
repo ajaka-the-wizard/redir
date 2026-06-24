@@ -173,7 +173,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer closeResponse(resp)
 	return decodeAPIError(resp)
 }
 
@@ -274,10 +274,9 @@ func (c *Client) Commit(ctx context.Context, batchID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer closeResponse(resp)
 	return decodeAPIError(resp)
 }
-
 func (c *Client) uploadOnce(ctx context.Context, batchID uuid.UUID, files []File, seqIDs []int) ([]Media, error) {
 	pr, pw := io.Pipe()
 	writer := multipart.NewWriter(pw)
@@ -383,20 +382,6 @@ func decodeAPIError(resp *http.Response) error {
 	return fmt.Errorf("redir: api returned %d: %s", resp.StatusCode, msg)
 }
 
-func isRetryable(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	if strings.Contains(errStr, "api returned 5") {
-		return true
-	}
-	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "connection") {
-		return true
-	}
-	return false
-}
-
 func filePartHeader(name, contentType string, seqID int) textproto.MIMEHeader {
 	h := make(textproto.MIMEHeader)
 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, escapeQuotes(name)))
@@ -412,6 +397,27 @@ func detectContentType(r io.Reader) string {
 		return "application/octet-stream"
 	}
 	return http.DetectContentType(sample[:n])
+}
+
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	if strings.Contains(errStr, "api returned 5") {
+		return true
+	}
+	if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "connection") {
+		return true
+	}
+	return false
+}
+
+func closeResponse(resp *http.Response) {
+	err := resp.Body.Close()
+	if err != nil {
+		fmt.Printf("redir: couldn't close response body. err : %v", err)
+	}
 }
 
 func escapeQuotes(s string) string {

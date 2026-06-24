@@ -19,6 +19,11 @@ func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient, sto
 	return func(c *gin.Context) {
 		logger := utils.GetLogger(c)
 		media, ok := utils.GetMedia(c)
+		if !ok {
+			logger.Error("media not found in context")
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
+			return
+		}
 		ua := c.GetHeader("user-agent")
 		client := parser.Parse(ua)
 		metric := models.Metrics{
@@ -31,11 +36,6 @@ func HandleRedirect(cfg *configs.EnvData, presignedClient *s3.PresignClient, sto
 			Os:             client.Os.Family,
 			OsVersion:      client.Os.Major,
 			Ip:             c.ClientIP(),
-		}
-		if !ok {
-			logger.Error("media not found in context")
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Something went wrong"})
-			return
 		}
 		preSignedUrl, err := store.GetPresigned(c.Request.Context(), logger, media.PublicKey)
 		if err != nil {

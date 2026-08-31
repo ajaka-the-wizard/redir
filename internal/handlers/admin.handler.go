@@ -24,7 +24,7 @@ func HandleReady(store *store.Store) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"success": false,
 				"message": "service unavailable",
-				"error":   err.Error(),
+				"error":   "dependency check failed: ",
 			})
 			return
 		}

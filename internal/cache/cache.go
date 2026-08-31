@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -32,6 +33,25 @@ func InitializeRedis(ctx context.Context, cfg *configs.EnvData, logger *slog.Log
 	return &Sredis{
 		rdb,
 	}
+}
+
+func (r *Sredis) CheckHealth(ctx context.Context, logger *slog.Logger) error {
+	logger.Info("redis: checking readiness")
+
+	if r == nil || r.rdb == nil {
+		return fmt.Errorf("redis: client is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if err := r.rdb.Ping(ctx).Err(); err != nil {
+		logger.Error("redis: readiness check failed", "error", err.Error())
+		return fmt.Errorf("redis: %w", err)
+	}
+
+	logger.Info("redis: readiness check passed")
+	return nil
 }
 
 func structToInterface(s any) map[string]any {

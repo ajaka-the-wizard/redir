@@ -70,12 +70,12 @@ func setupAuthRouter(t *testing.T) (*gin.Engine, *cache.Sredis, *pgxpool.Pool, *
 	})
 
 	repo := repository.InitializeRepository(pool)
-	store := store.InitializeStore(rdb, repo)
+	store := store.InitializeStore(rdb, repo, cfg)
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(middlewares.GenAndAttachRequestIdMiddleware())
-	router.Use(middlewares.AttachLoggerToContext())
+	router.Use(middlewares.AttachLoggerToContext(cfg))
 	router.Use(middlewares.PerformBasicRequestCycleCalculations())
 	router.Use(gin.Recovery())
 

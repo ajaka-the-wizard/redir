@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Go build artifacts
+bin/
+/tmp/
+*.exe
+*.out
+
+# Editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Local env files
+.env
+.env.*

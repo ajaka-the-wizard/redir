@@ -18,10 +18,18 @@ The repository also includes a Go SDK in `pkg/redir` for client applications tha
 - `internal/utils`: key generation, cookies, hashing, IDs, and Gin context helpers.
 - `pkg/redir`: Go SDK for product-key client uploads.
 - `migrations`: SQL migrations.
+- `scripts`: PowerShell and Bash helpers for applying and managing migrations.
+- `Dockerfile` and `docker-compose.yml`: container image and local development stack.
 
 ## Backend
 
-The server starts from `cmd/api/main.go`, which calls `internal.Listen()`. Startup loads `.env`, initializes Redis, Postgres, S3-compatible storage, a user-agent parser, repositories, and the store layer, then mounts routes under `/api/v1`.
+The server starts from `cmd/api/main.go`, which calls `internal.Listen()`. Startup loads `.env` when present (and otherwise uses system environment variables), initializes Redis, Postgres, S3-compatible storage, a user-agent parser, repositories, and the store layer, then mounts routes under `/api/v1`.
+
+### Readiness
+
+- `GET /api/v1/readyz`
+
+The readiness endpoint checks Redis, Postgres, and the configured storage bucket. It returns `200` when every dependency is available; otherwise it returns `503` with the failed dependency check.
 
 ### Auth
 
@@ -94,7 +102,7 @@ Create a client with the backend URL, product ID, and generated private key:
 
 ```go
 client, err := redir.New(redir.Config{
-	BaseURL:   "http://localhost:8080",
+	BaseURL:   "http://localhost:5000",
 	ProductID: 123,
 	APIKey:    "rp_live_xxx",
 })
@@ -104,7 +112,7 @@ client, err := redir.New(redir.Config{
 
 ```go
 client, err := redir.New(redir.Config{
-	BaseURL:    "http://localhost:8080",
+	BaseURL:    "http://localhost:5000",
 	ProductID: 123,
 	APIKey:    "rp_live_xxx",
 	Auto:      redir.Bool(false),
@@ -162,7 +170,13 @@ The SDK accepts `io.ReadSeeker` file bodies so it can rewind and retry missing f
 
 ## Configuration
 
-The backend loads configuration from `.env` using `godotenv`.
+The backend loads configuration from `.env` using `godotenv` when the file is present, and otherwise uses system environment variables. For local development, start with the included defaults:
+
+```sh
+cp .env.example .env
+```
+
+The sample configuration targets a local Postgres instance, Redis, and MinIO. Set the OAuth variables when those flows are needed.
 
 Supported environment variables include:
 
@@ -192,6 +206,26 @@ Supported environment variables include:
 
 ## Local Development
 
+### Docker Compose
+
+Docker Compose provides Postgres, Redis, MinIO (with its console), a one-off migration service, and the API. It creates the storage bucket at application startup.
+
+```sh
+make docker-up
+```
+
+The API is available at `http://localhost:5000`, the readiness endpoint is `http://localhost:5000/api/v1/readyz`, and the MinIO console is available at `http://localhost:9001`.
+
+Stop the stack with:
+
+```sh
+make docker-down
+```
+
+`make docker-down` removes the Compose volumes, including local Postgres and MinIO data.
+
+### Run services yourself
+
 Run the server:
 
 ```sh
@@ -216,12 +250,29 @@ Tests in this repository include integration coverage that expects configured ex
 
 SQL migrations live in `migrations/` and cover users, media, metrics, products, encryption helpers, and later media/metrics schema changes.
 
-Run migrations against `DATABASE_URL` with the migration tooling you use locally. The repository includes `scripts/migrations.ps1` for local migration workflows.
+Run migrations against `DATABASE_URL` with the migration tooling you use locally. Both helpers expect the `migrate` CLI to be installed; use `.env` to provide `DATABASE_URL` for local runs.
+
+On Linux or macOS:
+
+```sh
+bash scripts/migrations.sh up
+bash scripts/migrations.sh down 1
+bash scripts/migrations.sh create add_example_table
+bash scripts/migrations.sh force 9
+```
+
+On Windows PowerShell:
+
+```powershell
+.\scripts\migrations.ps1 up
+.\scripts\migrations.ps1 down 1
+.\scripts\migrations.ps1 create add_example_table
+.\scripts\migrations.ps1 force 9
+```
 
 ## Current Limitations
 
 - Response bodies are not fully standardized across all handlers yet.
 - Product/media cache invalidation after mutations needs tightening.
-- Local setup docs can still be expanded for Postgres, Redis, and S3-compatible storage.
 - GitHub OAuth callback handling is present as commented code but not currently mounted.
 - Some names and error messages still need Go/API polish.

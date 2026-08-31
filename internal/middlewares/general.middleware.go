@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ajaka-the-wizard/redir/internal/configs"
 	"github.com/ajaka-the-wizard/redir/internal/utils"
 	"github.com/gin-gonic/gin"
 )
@@ -21,11 +22,14 @@ func GenAndAttachRequestIdMiddleware() gin.HandlerFunc {
 	}
 }
 
-func AttachLoggerToContext() gin.HandlerFunc {
+func AttachLoggerToContext(cfg *configs.EnvData) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		reqId := c.GetString("requestId")
 		reqLogger := slog.Default().With(
 			slog.String("request_id", reqId),
+			slog.String("environment", cfg.ENVIRONMENT),
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
 		)
 		c.Set("logger", reqLogger)
 		c.Next()
@@ -35,10 +39,9 @@ func AttachLoggerToContext() gin.HandlerFunc {
 func PerformBasicRequestCycleCalculations() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		path := c.Request.URL.Path
 		logger := utils.GetLogger(c)
 
-		logger.Info("request started", "method", c.Request.Method, "path", path)
+		logger.Info("request started")
 		c.Next()
 
 		latency := time.Since(start)
@@ -48,7 +51,6 @@ func PerformBasicRequestCycleCalculations() gin.HandlerFunc {
 		attrs := []any{
 			"status", status,
 			"latency", latency,
-			"path", path,
 		}
 		if status >= 500 {
 			logger.Error(msg, attrs...)

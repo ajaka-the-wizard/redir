@@ -36,8 +36,7 @@ type EnvData struct {
 func LoadEnv(logger *slog.Logger) *EnvData {
 	err := godotenv.Load()
 	if err != nil {
-		logger.Error("environment file not found", "error", err.Error())
-		panic("Env file not found")
+		logger.Error("environment file not found, proceeding with system environment variables")
 	}
 
 	config := EnvData{

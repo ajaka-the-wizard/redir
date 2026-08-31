@@ -3,6 +3,7 @@ package configs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -65,4 +66,30 @@ func PerformAllNecessaryActivationStep(ctx context.Context, cfg *EnvData, logger
 	presignedClient := s3.NewPresignClient(client)
 	tm := transfermanager.New(client)
 	return client, presignedClient, tm
+}
+
+func CheckStorageHealth(ctx context.Context, cfg *EnvData, logger *slog.Logger) error {
+	logger.Info("storage: checking readiness")
+
+	if cfg == nil {
+		return fmt.Errorf("storage: config is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	client, err := initWhatEverBucket(ctx, cfg)
+	if err != nil {
+		logger.Error("storage: readiness check failed", "error", err.Error())
+		return fmt.Errorf("storage: %w", err)
+	}
+
+	_, err = client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(cfg.BUCKET_NAME)})
+	if err != nil {
+		logger.Error("storage: readiness check failed", "error", err.Error())
+		return fmt.Errorf("storage: %w", err)
+	}
+
+	logger.Info("storage: readiness check passed")
+	return nil
 }

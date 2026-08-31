@@ -25,17 +25,22 @@ func Listen() error {
 	pool := database.ConnectDB(ctx, logger, cfg.DATABASE_URL)
 	defer pool.Close()
 	repo := repository.InitializeRepository(pool)
-	store := store.InitializeStore(rdb, repo)
+	store := store.InitializeStore(rdb, repo, cfg)
 	if cfg.PRODUCTION {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
+
 	router.Use(middlewares.GenAndAttachRequestIdMiddleware())
-	router.Use(middlewares.AttachLoggerToContext())
+	router.Use(middlewares.AttachLoggerToContext(cfg))
 	router.Use(middlewares.PerformBasicRequestCycleCalculations())
 	router.Use(gin.Recovery())
+
 	router.SetTrustedProxies(nil)
+
 	v1 := router.Group("/api/v1")
+
+	routes.AdminRoutes(v1, store)
 	routes.AuthRoutes(v1, cfg, store)
 	routes.UserRoutes(v1, cfg, store)
 	routes.ProductRoutes(v1, cfg, store)

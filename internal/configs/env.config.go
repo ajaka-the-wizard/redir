@@ -1,6 +1,8 @@
 package configs
 
 import (
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 
@@ -36,7 +38,12 @@ type EnvData struct {
 func LoadEnv(logger *slog.Logger) *EnvData {
 	err := godotenv.Load()
 	if err != nil {
-		logger.Error("environment file not found, proceeding with system environment variables")
+		if errors.Is(err, fs.ErrNotExist) {
+			logger.Warn("environment file not found, proceeding with system environment variables")
+		} else {
+			logger.Error("failed to load environment file", "error", err.Error())
+			panic(err)
+		}
 	}
 
 	config := EnvData{
